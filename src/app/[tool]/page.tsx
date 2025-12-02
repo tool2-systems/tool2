@@ -1,6 +1,8 @@
 import { getToolBySlug, getAllTools } from "@/lib/toolMatrix";
 import { notFound } from "next/navigation";
 import { CsvDedupeClient } from "@/components/tool-runtime/csv-dedupe-client";
+import { ToolPreview } from "@/components/tool-runtime/tool-preview";
+import { ToolUnlock } from "@/components/tool-runtime/tool-unlock";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -82,22 +84,11 @@ export default async function Page(props: PageProps) {
       </section>
 
       <section>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">Preview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Preview is locked. Processing not implemented.
-            </p>
-          </CardContent>
-        </Card>
+        {toolDef.tool_slug === "csv-dedupe" ? null : <ToolPreview locked />}
       </section>
 
       <section>
-        <Button disabled className="w-full">
-          Unlock full download — $2
-        </Button>
+        <ToolUnlock />
       </section>
 
       <section className="space-y-3">
@@ -121,7 +112,8 @@ export default async function Page(props: PageProps) {
         <div className="space-y-3">
           <h3 className="text-lg font-medium">How fast is processing?</h3>
           <p className="text-base text-muted-foreground">
-            Processing times vary by tool and file size. More details coming soon.
+            Processing times vary by tool and file size. More details coming
+            soon.
           </p>
         </div>
 

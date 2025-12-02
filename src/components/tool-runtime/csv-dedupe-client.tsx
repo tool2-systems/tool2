@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { ToolPreview } from "@/components/tool-runtime/tool-preview";
 
 export function CsvDedupeClient() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string>("idle");
-  const [resultBlob, setResultBlob] = useState<Blob | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
 
   async function handleRun() {
     if (!file) return;
 
     setStatus("processing");
-    setResultBlob(null);
+    setPreview(null);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -27,19 +28,11 @@ export function CsvDedupeClient() {
     }
 
     const blob = await res.blob();
-    setResultBlob(blob);
+    const text = await blob.text();
+
+    const lines = text.split(/\r?\n/).slice(0, 5).join("\n");
+    setPreview(lines);
     setStatus("done");
-  }
-
-  function handleDownload() {
-    if (!resultBlob) return;
-
-    const url = URL.createObjectURL(resultBlob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "result.csv";
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -61,18 +54,11 @@ export function CsvDedupeClient() {
       <div className="text-sm text-muted-foreground">
         {status === "idle" && "Waiting for input…"}
         {status === "processing" && "Processing…"}
-        {status === "done" && "Processing completed."}
+        {status === "done" && "Preview ready."}
         {status === "error" && "Error while processing."}
       </div>
 
-      {status === "done" && resultBlob && (
-        <button
-          onClick={handleDownload}
-          className="px-4 py-2 border rounded"
-        >
-          Download result
-        </button>
-      )}
+      {preview && <ToolPreview locked={false} previewText={preview} />}
     </div>
   );
 }
