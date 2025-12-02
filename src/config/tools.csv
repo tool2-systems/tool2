@@ -1,1 +1,4 @@
 id,category,tool_slug,title,problem_solved,input_type,output_type,complexity,price_usd,search_intent,payment_signal,status
+pdf-compress,pdf,pdf-compress,Compress PDF files,Reduce PDF file size while keeping readable quality,pdf,pdf,simple,2,compress pdf smaller,strong,draft
+pdf-merge,pdf,pdf-merge,Merge PDF files,Combine multiple PDF files into one document,pdf,pdf,simple,2,merge pdf online,strong,draft
+csv-dedupe,csv,csv-dedupe,Remove duplicate rows from CSV,Remove duplicate rows from a CSV file based on full row match,csv,csv,simple,2,csv remove duplicates,medium,draft
