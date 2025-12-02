@@ -5,31 +5,55 @@ import { Button } from "@/components/ui/button";
 
 type ToolUnlockProps = {
   priceLabel?: string;
+  enabled?: boolean;
+  onUnlock?: (token: string) => void;
 };
 
-export function ToolUnlock({ priceLabel = "Unlock full download — $2" }: ToolUnlockProps) {
-  const [status, setStatus] = useState<"idle" | "pending">("idle");
+export function ToolUnlock({
+  priceLabel = "Unlock full download — $2",
+  enabled = false,
+  onUnlock,
+}: ToolUnlockProps) {
+  const [status, setStatus] = useState<"idle" | "pending" | "success">("idle");
+
+  const disabled = status === "pending" || !enabled;
 
   function handleClick() {
-    if (status === "pending") return;
+    if (disabled) return;
+
     setStatus("pending");
 
     setTimeout(() => {
-      setStatus("idle");
+      setStatus("success");
+      if (onUnlock) {
+        onUnlock("demo-token");
+      }
     }, 800);
+  }
+
+  const buttonLabel =
+    status === "pending" ? "Processing…" : priceLabel;
+
+  let helper = "";
+  if (!enabled) {
+    helper = "Run the tool to unlock payment.";
+  } else if (status === "success") {
+    helper = "Payment confirmed. Download will be enabled once wired.";
+  } else {
+    helper = "Payments are not integrated yet.";
   }
 
   return (
     <div className="space-y-2">
       <Button
         className="w-full"
-        disabled={status === "pending"}
+        disabled={disabled}
         onClick={handleClick}
       >
-        {priceLabel}
+        {buttonLabel}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Payments are not implemented yet.
+        {helper}
       </p>
     </div>
   );

@@ -88,7 +88,7 @@ export default async function Page(props: PageProps) {
       </section>
 
       <section>
-        <ToolUnlock />
+        {toolDef.tool_slug === "csv-dedupe" ? null : <ToolUnlock />}
       </section>
 
       <section className="space-y-3">

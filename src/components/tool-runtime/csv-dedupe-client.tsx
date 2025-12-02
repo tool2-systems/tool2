@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ToolPreview } from "@/components/tool-runtime/tool-preview";
+import { ToolUnlock } from "@/components/tool-runtime/tool-unlock";
 
 export function CsvDedupeClient() {
   const [file, setFile] = useState<File | null>(null);
@@ -59,6 +60,8 @@ export function CsvDedupeClient() {
       </div>
 
       {preview && <ToolPreview locked={false} previewText={preview} />}
+
+      <ToolUnlock enabled={!!preview} />
     </div>
   );
 }
