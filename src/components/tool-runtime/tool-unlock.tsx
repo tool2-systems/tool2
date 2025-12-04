@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { createDemoToken } from "@/lib/token";
 
 type ToolUnlockProps = {
   priceLabel?: string;
@@ -24,9 +25,10 @@ export function ToolUnlock({
     setStatus("pending");
 
     setTimeout(() => {
+      const token = createDemoToken();
       setStatus("success");
       if (onUnlock) {
-        onUnlock("demo-token");
+        onUnlock(token);
       }
     }, 800);
   }
