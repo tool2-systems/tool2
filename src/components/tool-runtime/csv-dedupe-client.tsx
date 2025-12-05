@@ -8,6 +8,7 @@ export function CsvDedupeClient() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string>("idle");
   const [preview, setPreview] = useState<string | null>(null);
+  const [resultId, setResultId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<
     "idle" | "checking" | "ready" | "error"
@@ -18,6 +19,7 @@ export function CsvDedupeClient() {
 
     setStatus("processing");
     setPreview(null);
+    setResultId(null);
     setToken(null);
     setDownloadStatus("idle");
 
@@ -34,11 +36,18 @@ export function CsvDedupeClient() {
       return;
     }
 
-    const blob = await res.blob();
-    const text = await blob.text();
+    const data = await res.json().catch(() => null);
 
-    const lines = text.split(/\r?\n/).slice(0, 5).join("\n");
-    setPreview(lines);
+    const previewText = data?.preview as string | undefined;
+    const newResultId = data?.resultId as string | undefined;
+
+    if (!previewText || !newResultId) {
+      setStatus("error");
+      return;
+    }
+
+    setPreview(previewText);
+    setResultId(newResultId);
     setStatus("done");
   }
 
@@ -54,7 +63,35 @@ export function CsvDedupeClient() {
       return;
     }
 
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "result.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+
     setDownloadStatus("ready");
+  }
+
+  async function handleUnlock(tokenValue: string) {
+    setToken(tokenValue);
+    setDownloadStatus("idle");
+
+    if (!resultId) {
+      return;
+    }
+
+    await fetch("/api/register-download", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        token: tokenValue,
+        resultId,
+      }),
+    }).catch(() => {});
   }
 
   return (
@@ -84,10 +121,7 @@ export function CsvDedupeClient() {
 
       <ToolUnlock
         enabled={!!preview}
-        onUnlock={(t) => {
-          setToken(t);
-          setDownloadStatus("idle");
-        }}
+        onUnlock={handleUnlock}
       />
 
       {token && (
@@ -99,10 +133,11 @@ export function CsvDedupeClient() {
             Download full file (stub)
           </button>
           <p className="text-xs text-muted-foreground">
-            {downloadStatus === "idle" && "Download is available. This is a stub."}
-            {downloadStatus === "checking" && "Checking download…"}
+            {downloadStatus === "idle" &&
+              "Download is available. This will be wired to the final file handling later."}
+            {downloadStatus === "checking" && "Downloading…"}
             {downloadStatus === "ready" &&
-              "Token validated. File download will be wired here later."}
+              "File downloaded. This is the processed result for this run."}
             {downloadStatus === "error" &&
               "Download failed. Token was rejected by the server."}
           </p>
