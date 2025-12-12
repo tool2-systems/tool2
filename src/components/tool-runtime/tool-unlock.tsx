@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 type ToolUnlockProps = {
@@ -24,6 +24,15 @@ export function ToolUnlock({
 
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
 
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
   const disabled =
     status === "starting" ||
     status === "waiting" ||
@@ -34,15 +43,20 @@ export function ToolUnlock({
   async function startCheckout() {
     if (disabled) return;
 
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+
+    setCheckoutId(null);
     setStatus("starting");
 
     const res = await fetch("/api/payments/create-checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ toolSlug, resultId }),
-    });
+      signal: abortRef.current.signal,
+    }).catch(() => null);
 
-    if (!res.ok) {
+    if (!res || !res.ok) {
       setStatus("error");
       return;
     }
@@ -62,8 +76,28 @@ export function ToolUnlock({
   }
 
   async function pollForToken(id: string) {
-    for (let i = 0; i < 30; i += 1) {
-      const res = await fetch(`/api/webhooks/lemon?checkoutId=${encodeURIComponent(id)}`);
+    const controller = abortRef.current;
+    if (!controller) return;
+
+    for (let i = 0; i < 60; i += 1) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      const res = await fetch(
+        `/api/webhooks/lemon?checkoutId=${encodeURIComponent(id)}`,
+        { signal: controller.signal }
+      ).catch(() => null);
+
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      if (!res || !res.ok) {
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+
       const data = await res.json().catch(() => null);
 
       if (data?.status === "paid" && typeof data?.token === "string") {
@@ -72,7 +106,7 @@ export function ToolUnlock({
         return;
       }
 
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 1000));
     }
 
     setStatus("error");
@@ -87,9 +121,11 @@ export function ToolUnlock({
   else helper = "Payments are not integrated yet.";
 
   const label =
-    status === "starting" ? "Starting checkout…" :
-    status === "waiting" ? "Waiting for payment…" :
-    priceLabel;
+    status === "starting"
+      ? "Starting checkout…"
+      : status === "waiting"
+      ? "Waiting for payment…"
+      : priceLabel;
 
   return (
     <div className="space-y-2">
@@ -98,9 +134,7 @@ export function ToolUnlock({
       </Button>
       <p className="text-xs text-muted-foreground">{helper}</p>
       {checkoutId && (
-        <p className="text-xs text-muted-foreground">
-          Checkout ID: {checkoutId}
-        </p>
+        <p className="text-xs text-muted-foreground">Checkout ID: {checkoutId}</p>
       )}
     </div>
   );
