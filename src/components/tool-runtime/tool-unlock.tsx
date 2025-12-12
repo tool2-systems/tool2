@@ -3,134 +3,198 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
+type UnlockStatus = "idle" | "starting" | "waiting" | "success" | "timeout" | "error";
+
 type ToolUnlockProps = {
-  priceLabel?: string;
-  enabled?: boolean;
-  toolSlug?: string;
-  resultId?: string | null;
-  onUnlock?: (token: string) => void;
+  enabled: boolean;
+  toolSlug: string;
+  resultId: string | null;
+  onUnlock: (token: string) => void;
 };
 
-export function ToolUnlock({
-  priceLabel = "Unlock full download — $2",
-  enabled = false,
-  toolSlug,
-  resultId,
-  onUnlock,
-}: ToolUnlockProps) {
-  const [status, setStatus] = useState<
-    "idle" | "starting" | "waiting" | "success" | "error"
-  >("idle");
+type CreateCheckoutResponse =
+  | { ok: true; checkoutId: string; checkoutUrl: string }
+  | { ok: false };
 
+type PollResponse =
+  | { ok: true; status: "paid"; token: string }
+  | { ok: false; status?: "pending" };
+
+export function ToolUnlock({ enabled, toolSlug, resultId, onUnlock }: ToolUnlockProps) {
+  const [status, setStatus] = useState<UnlockStatus>("idle");
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
-  const pollIdRef = useRef<number>(0);
+  const pollTimerRef = useRef<number | null>(null);
+  const startedAtRef = useRef<number>(0);
+  const unlockedRef = useRef<boolean>(false);
+
+  function stopPolling() {
+    if (pollTimerRef.current) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+  }
+
+  function reset() {
+    stopPolling();
+    setStatus("idle");
+    setCheckoutId(null);
+    startedAtRef.current = 0;
+    unlockedRef.current = false;
+  }
 
   useEffect(() => {
+    if (!enabled) {
+      reset();
+    }
     return () => {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      pollIdRef.current += 1;
+      stopPolling();
     };
-  }, []);
+  }, [enabled]);
 
-  const disabled =
-    status === "starting" ||
-    status === "waiting" ||
-    !enabled ||
-    !toolSlug ||
-    !resultId;
-
-  async function startCheckout() {
-    if (disabled) return;
-
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-    pollIdRef.current += 1;
-
-    setCheckoutId(null);
-    setStatus("starting");
+  async function createCheckout() {
+    if (!enabled || !resultId) return null;
 
     const res = await fetch("/api/payments/create-checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ toolSlug, resultId }),
+    }).catch(() => null);
+
+    if (!res || !res.ok) return null;
+
+    const data = (await res.json().catch(() => null)) as CreateCheckoutResponse | null;
+    if (!data || !("ok" in data) || data.ok !== true) return null;
+
+    return data;
+  }
+
+  async function pollOnce(id: string) {
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+
+    const res = await fetch(`/api/webhooks/lemon?checkoutId=${encodeURIComponent(id)}`, {
+      method: "GET",
       signal: abortRef.current.signal,
     }).catch(() => null);
 
     if (!res || !res.ok) {
-      setStatus("error");
-      return;
+      return { kind: "error" as const };
     }
 
-    const data = await res.json().catch(() => null);
-    const id = data?.checkoutId as string | undefined;
-
-    if (!id) {
-      setStatus("error");
-      return;
+    const data = (await res.json().catch(() => null)) as PollResponse | null;
+    if (!data) {
+      return { kind: "error" as const };
     }
 
-    setCheckoutId(id);
-    setStatus("waiting");
+    if ("ok" in data && data.ok === true && data.status === "paid" && typeof data.token === "string") {
+      return { kind: "paid" as const, token: data.token };
+    }
 
-    const myPollId = pollIdRef.current;
-    pollForToken(id, myPollId);
+    return { kind: "pending" as const };
   }
 
-  async function pollForToken(id: string, pollId: number) {
-    const controller = abortRef.current;
-    if (!controller) return;
+  function scheduleNextPoll(id: string) {
+    const elapsed = Date.now() - startedAtRef.current;
+    const maxMs = 60000;
 
-    for (let i = 0; i < 60; i += 1) {
-      if (controller.signal.aborted) return;
-      if (pollIdRef.current !== pollId) return;
+    if (elapsed >= maxMs) {
+      stopPolling();
+      setStatus("timeout");
+      return;
+    }
 
-      const res = await fetch(
-        `/api/webhooks/lemon?checkoutId=${encodeURIComponent(id)}`,
-        { signal: controller.signal, cache: "no-store" }
-      ).catch(() => null);
+    pollTimerRef.current = window.setTimeout(async () => {
+      if (unlockedRef.current) return;
 
-      if (controller.signal.aborted) return;
-      if (pollIdRef.current !== pollId) return;
+      const r = await pollOnce(id);
 
-      if (res && res.ok) {
-        const data = await res.json().catch(() => null);
-
-        if (data?.status === "paid" && typeof data?.token === "string") {
-          setStatus("success");
-          if (onUnlock) onUnlock(data.token);
-          return;
-        }
+      if (r.kind === "paid") {
+        unlockedRef.current = true;
+        stopPolling();
+        setStatus("success");
+        onUnlock(r.token);
+        return;
       }
 
-      await new Promise((r) => setTimeout(r, 1000));
-    }
+      if (r.kind === "error") {
+        stopPolling();
+        setStatus("error");
+        return;
+      }
 
-    if (pollIdRef.current === pollId) {
-      setStatus("error");
-    }
+      scheduleNextPoll(id);
+    }, 2000);
   }
 
-  let helper = "";
-  if (!enabled) helper = "Run the tool to unlock payment.";
-  else if (!toolSlug || !resultId) helper = "Processing state is incomplete.";
+  async function start() {
+    if (!enabled) return;
+    if (!resultId) return;
+    if (status === "starting" || status === "waiting" || status === "success") return;
+
+    setStatus("starting");
+
+    const checkout = await createCheckout();
+
+    if (!checkout) {
+      setStatus("error");
+      return;
+    }
+
+    setCheckoutId(checkout.checkoutId);
+    startedAtRef.current = Date.now();
+    setStatus("waiting");
+
+    const first = await pollOnce(checkout.checkoutId);
+
+    if (first.kind === "paid") {
+      unlockedRef.current = true;
+      stopPolling();
+      setStatus("success");
+      onUnlock(first.token);
+      return;
+    }
+
+    if (first.kind === "error") {
+      stopPolling();
+      setStatus("error");
+      return;
+    }
+
+    scheduleNextPoll(checkout.checkoutId);
+  }
+
+  const disabled =
+    !enabled || !resultId || status === "starting" || status === "waiting" || status === "success";
+
+  const priceLabel = "Unlock full download — $2";
+
+  let helper = "Payments are not integrated yet.";
+  if (!enabled) helper = "Run the tool to generate a preview first.";
+  else if (status === "idle") helper = "Unlock is available after preview.";
+  else if (status === "starting") helper = "Starting checkout…";
   else if (status === "waiting") helper = "Waiting for payment confirmation…";
   else if (status === "success") helper = "Payment confirmed.";
+  else if (status === "timeout") helper = "Payment confirmation timed out.";
   else if (status === "error") helper = "Payment failed.";
-  else helper = "Payments are not integrated yet.";
 
   const label =
     status === "starting"
       ? "Starting checkout…"
       : status === "waiting"
       ? "Waiting for payment…"
+      : status === "success"
+      ? "Unlocked"
       : priceLabel;
 
   return (
     <div className="space-y-2">
-      <Button className="w-full" disabled={disabled} onClick={startCheckout}>
+      <Button className="w-full" disabled={disabled} onClick={start}>
         {label}
       </Button>
       <p className="text-xs text-muted-foreground">{helper}</p>
