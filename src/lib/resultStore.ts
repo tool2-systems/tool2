@@ -15,7 +15,7 @@ export async function createResult(
   fileName: string
 ): Promise<StoredResultMeta> {
   const buffer = Buffer.from(content, "utf-8");
-  const tempFile = await saveTempFile(buffer, mimeType, fileName);
+  const tempFile = await saveTempFile(buffer, mimeType, fileName, 300000);
 
   const stored: StoredResultMeta = {
     id: tempFile.id,
@@ -41,7 +41,7 @@ export async function consumeResultForToken(token: string): Promise<{
     return null;
   }
 
-  tokenToResultId.delete(resultId);
+  tokenToResultId.delete(token);
   const meta = results.get(resultId);
 
   if (!meta) {
