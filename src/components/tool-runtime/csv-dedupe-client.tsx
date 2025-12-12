@@ -121,25 +121,21 @@ export function CsvDedupeClient() {
 
       <ToolUnlock
         enabled={!!preview}
+        toolSlug="csv-dedupe"
+        resultId={resultId}
         onUnlock={handleUnlock}
       />
 
       {token && (
         <div className="space-y-2">
-          <button
-            onClick={handleDownload}
-            className="px-4 py-2 border rounded"
-          >
-            Download full file (stub)
+          <button onClick={handleDownload} className="px-4 py-2 border rounded">
+            Download full file
           </button>
           <p className="text-xs text-muted-foreground">
-            {downloadStatus === "idle" &&
-              "Download is available. This will be wired to the final file handling later."}
+            {downloadStatus === "idle" && "Download is available."}
             {downloadStatus === "checking" && "Downloading…"}
-            {downloadStatus === "ready" &&
-              "File downloaded. This is the processed result for this run."}
-            {downloadStatus === "error" &&
-              "Download failed. Token was rejected by the server."}
+            {downloadStatus === "ready" && "File downloaded."}
+            {downloadStatus === "error" && "Download failed."}
           </p>
         </div>
       )}
