@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { RUNTIME } from "@/lib/runtimeConfig";
 
 type UnlockStatus = "idle" | "starting" | "waiting" | "success" | "timeout" | "error";
 
@@ -103,17 +104,14 @@ export function ToolUnlock({ enabled, toolSlug, resultId, onUnlock }: ToolUnlock
 
   function nextDelayMs() {
     const attempt = pollAttemptRef.current;
-    const base = 2000;
-    const max = 10000;
-    const raw = Math.floor(base * Math.pow(1.4, attempt));
-    return Math.min(max, raw);
+    const raw = Math.floor(RUNTIME.checkout.pollBaseDelayMs * Math.pow(RUNTIME.checkout.pollBackoffFactor, attempt));
+    return Math.min(RUNTIME.checkout.pollMaxDelayMs, raw);
   }
 
   function scheduleNextPoll(id: string) {
     const elapsed = Date.now() - startedAtRef.current;
-    const maxMs = 60000;
 
-    if (elapsed >= maxMs) {
+    if (elapsed >= RUNTIME.checkout.pollTimeoutMs) {
       stopPolling();
       setStatus("timeout");
       return;

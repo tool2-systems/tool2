@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { cleanupCheckoutMeta, setCheckoutMeta } from "@/lib/checkoutStore";
+import { RUNTIME } from "@/lib/runtimeConfig";
 
 export async function POST(req: Request) {
-  cleanupCheckoutMeta(300000);
+  cleanupCheckoutMeta(RUNTIME.checkout.checkoutMetaTtlMs);
 
   const body = await req.json().catch(() => null);
 
