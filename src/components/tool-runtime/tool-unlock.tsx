@@ -28,6 +28,7 @@ export function ToolUnlock({ enabled, toolSlug, resultId, onUnlock }: ToolUnlock
   const pollTimerRef = useRef<number | null>(null);
   const startedAtRef = useRef<number>(0);
   const unlockedRef = useRef<boolean>(false);
+  const pollAttemptRef = useRef<number>(0);
 
   function stopPolling() {
     if (pollTimerRef.current) {
@@ -45,6 +46,7 @@ export function ToolUnlock({ enabled, toolSlug, resultId, onUnlock }: ToolUnlock
     setStatus("idle");
     setCheckoutId(null);
     startedAtRef.current = 0;
+    pollAttemptRef.current = 0;
     unlockedRef.current = false;
   }
 
@@ -99,6 +101,14 @@ export function ToolUnlock({ enabled, toolSlug, resultId, onUnlock }: ToolUnlock
     return { kind: "pending" as const };
   }
 
+  function nextDelayMs() {
+    const attempt = pollAttemptRef.current;
+    const base = 2000;
+    const max = 10000;
+    const raw = Math.floor(base * Math.pow(1.4, attempt));
+    return Math.min(max, raw);
+  }
+
   function scheduleNextPoll(id: string) {
     const elapsed = Date.now() - startedAtRef.current;
     const maxMs = 60000;
@@ -108,6 +118,9 @@ export function ToolUnlock({ enabled, toolSlug, resultId, onUnlock }: ToolUnlock
       setStatus("timeout");
       return;
     }
+
+    const delay = nextDelayMs();
+    pollAttemptRef.current = pollAttemptRef.current + 1;
 
     pollTimerRef.current = window.setTimeout(async () => {
       if (unlockedRef.current) return;
@@ -129,7 +142,7 @@ export function ToolUnlock({ enabled, toolSlug, resultId, onUnlock }: ToolUnlock
       }
 
       scheduleNextPoll(id);
-    }, 2000);
+    }, delay);
   }
 
   async function start() {
@@ -148,6 +161,7 @@ export function ToolUnlock({ enabled, toolSlug, resultId, onUnlock }: ToolUnlock
 
     setCheckoutId(checkout.checkoutId);
     startedAtRef.current = Date.now();
+    pollAttemptRef.current = 0;
     setStatus("waiting");
 
     const first = await pollOnce(checkout.checkoutId);
