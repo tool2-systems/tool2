@@ -25,11 +25,13 @@ export function ToolUnlock({
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  const pollIdRef = useRef<number>(0);
 
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
       abortRef.current = null;
+      pollIdRef.current += 1;
     };
   }, []);
 
@@ -45,6 +47,7 @@ export function ToolUnlock({
 
     abortRef.current?.abort();
     abortRef.current = new AbortController();
+    pollIdRef.current += 1;
 
     setCheckoutId(null);
     setStatus("starting");
@@ -72,44 +75,42 @@ export function ToolUnlock({
     setCheckoutId(id);
     setStatus("waiting");
 
-    pollForToken(id);
+    const myPollId = pollIdRef.current;
+    pollForToken(id, myPollId);
   }
 
-  async function pollForToken(id: string) {
+  async function pollForToken(id: string, pollId: number) {
     const controller = abortRef.current;
     if (!controller) return;
 
     for (let i = 0; i < 60; i += 1) {
-      if (controller.signal.aborted) {
-        return;
-      }
+      if (controller.signal.aborted) return;
+      if (pollIdRef.current !== pollId) return;
 
       const res = await fetch(
         `/api/webhooks/lemon?checkoutId=${encodeURIComponent(id)}`,
-        { signal: controller.signal }
+        { signal: controller.signal, cache: "no-store" }
       ).catch(() => null);
 
-      if (controller.signal.aborted) {
-        return;
-      }
+      if (controller.signal.aborted) return;
+      if (pollIdRef.current !== pollId) return;
 
-      if (!res || !res.ok) {
-        await new Promise((r) => setTimeout(r, 1000));
-        continue;
-      }
+      if (res && res.ok) {
+        const data = await res.json().catch(() => null);
 
-      const data = await res.json().catch(() => null);
-
-      if (data?.status === "paid" && typeof data?.token === "string") {
-        setStatus("success");
-        if (onUnlock) onUnlock(data.token);
-        return;
+        if (data?.status === "paid" && typeof data?.token === "string") {
+          setStatus("success");
+          if (onUnlock) onUnlock(data.token);
+          return;
+        }
       }
 
       await new Promise((r) => setTimeout(r, 1000));
     }
 
-    setStatus("error");
+    if (pollIdRef.current === pollId) {
+      setStatus("error");
+    }
   }
 
   let helper = "";
