@@ -1,27 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { ToolPreview } from "@/components/tool-runtime/tool-preview";
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ToolUnlock } from "@/components/tool-runtime/tool-unlock";
+
+type RunState = "idle" | "processing" | "done" | "error";
+
+function sampleLines(text: string, maxLines: number) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+  return lines.slice(0, maxLines).join("\n");
+}
 
 export function CsvDedupeClient() {
   const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<string>("idle");
-  const [preview, setPreview] = useState<string | null>(null);
+  const [runState, setRunState] = useState<RunState>("idle");
+  const [message, setMessage] = useState<string>("");
+  const [preview, setPreview] = useState<string>("");
   const [resultId, setResultId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [downloadStatus, setDownloadStatus] = useState<
-    "idle" | "checking" | "ready" | "error"
+  const [downloadState, setDownloadState] = useState<
+    "idle" | "downloading" | "done" | "error"
   >("idle");
 
-  async function handleRun() {
+  const canRun = useMemo(() => !!file && runState !== "processing", [file, runState]);
+
+  async function onRun() {
     if (!file) return;
 
-    setStatus("processing");
-    setPreview(null);
-    setResultId(null);
     setToken(null);
-    setDownloadStatus("idle");
+    setDownloadState("idle");
+    setPreview("");
+    setResultId(null);
+
+    setRunState("processing");
+    setMessage("Processing…");
 
     const formData = new FormData();
     formData.append("file", file);
@@ -29,101 +46,112 @@ export function CsvDedupeClient() {
     const res = await fetch("/api/csv-dedupe", {
       method: "POST",
       body: formData,
-    });
+    }).catch(() => null);
 
-    if (!res.ok) {
-      setStatus("error");
+    if (!res || !res.ok) {
+      setRunState("error");
+      setMessage("Processing failed.");
       return;
     }
 
     const data = await res.json().catch(() => null);
-
-    const previewText = data?.preview as string | undefined;
-    const newResultId = data?.resultId as string | undefined;
-
-    if (!previewText || !newResultId) {
-      setStatus("error");
-      return;
-    }
+    const previewText = (data?.preview as string | undefined) ?? "";
+    const id = (data?.resultId as string | undefined) ?? null;
 
     setPreview(previewText);
-    setResultId(newResultId);
-    setStatus("done");
+    setResultId(id);
+
+    setRunState("done");
+    setMessage("Preview ready.");
+  }
+
+  function handleUnlock(unlockToken: string) {
+    setToken(unlockToken);
   }
 
   async function handleDownload() {
     if (!token) return;
 
-    setDownloadStatus("checking");
+    setDownloadState("downloading");
 
-    const res = await fetch(`/api/download?token=${encodeURIComponent(token)}`);
+    const res = await fetch(`/api/download?token=${encodeURIComponent(token)}`, {
+      method: "GET",
+    }).catch(() => null);
 
-    if (!res.ok) {
-      setDownloadStatus("error");
+    if (!res || !res.ok) {
+      setDownloadState("error");
       return;
     }
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
+
     const a = document.createElement("a");
     a.href = url;
     a.download = "result.csv";
+    document.body.appendChild(a);
     a.click();
+    a.remove();
+
     URL.revokeObjectURL(url);
-
-    setDownloadStatus("ready");
+    setDownloadState("done");
   }
 
-  function handleUnlock(tokenValue: string) {
-    setToken(tokenValue);
-    setDownloadStatus("idle");
-  }
+  const previewSample = useMemo(() => sampleLines(preview, 8), [preview]);
 
   return (
-    <div className="space-y-4">
-      <input
-        type="file"
-        accept=".csv,.txt"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-      />
-
-      <button
-        onClick={handleRun}
-        disabled={!file}
-        className="px-4 py-2 border rounded"
-      >
-        Run (client)
-      </button>
-
-      <div className="text-sm text-muted-foreground">
-        {status === "idle" && "Waiting for input…"}
-        {status === "processing" && "Processing…"}
-        {status === "done" && "Preview ready."}
-        {status === "error" && "Error while processing."}
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Label htmlFor="csv-file">Upload CSV file</Label>
+        <Input
+          id="csv-file"
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
       </div>
 
-      {preview && <ToolPreview locked={false} previewText={preview} />}
+      <div className="space-y-2">
+        <Button onClick={onRun} disabled={!canRun}>
+          {runState === "processing" ? "Processing…" : "Run"}
+        </Button>
+        {message && <p className="text-xs text-muted-foreground">{message}</p>}
+      </div>
 
-      <ToolUnlock
-        enabled={!!preview}
-        toolSlug="csv-dedupe"
-        resultId={resultId}
-        onUnlock={handleUnlock}
-      />
-
-      {token && (
+      {preview && (
         <div className="space-y-2">
-          <button onClick={handleDownload} className="px-4 py-2 border rounded">
-            Download full file
-          </button>
+          <div className="text-sm font-medium">Preview</div>
+          <pre className="whitespace-pre-wrap rounded border bg-muted px-4 py-3 text-sm">
+            {previewSample}
+          </pre>
           <p className="text-xs text-muted-foreground">
-            {downloadStatus === "idle" && "Download is available."}
-            {downloadStatus === "checking" && "Downloading…"}
-            {downloadStatus === "ready" && "File downloaded."}
-            {downloadStatus === "error" && "Download failed."}
+            This is a sample of the processed result.
           </p>
         </div>
       )}
+
+      <div className="space-y-4">
+        <ToolUnlock
+          enabled={!!preview && !!resultId}
+          toolSlug="csv-dedupe"
+          resultId={resultId}
+          onUnlock={handleUnlock}
+        />
+
+        {token && (
+          <div className="space-y-2">
+            <Button variant="outline" onClick={handleDownload} disabled={downloadState === "downloading"}>
+              {downloadState === "downloading" ? "Downloading…" : "Download full file"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {downloadState === "idle" && "Download is available."}
+              {downloadState === "downloading" && "Downloading…"}
+              {downloadState === "done" && "File downloaded."}
+              {downloadState === "error" && "Download failed."}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

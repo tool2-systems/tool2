@@ -1,158 +1,153 @@
-import { getToolBySlug, getAllTools } from "@/lib/toolMatrix";
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { getToolBySlug } from "@/lib/toolMatrix";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CsvDedupeClient } from "@/components/tool-runtime/csv-dedupe-client";
-import { ToolPreview } from "@/components/tool-runtime/tool-preview";
-import { ToolUnlock } from "@/components/tool-runtime/tool-unlock";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type PageProps = {
-  params: Promise<{
-    tool: string;
-  }>;
+  params: Promise<{ tool: string }>;
 };
 
-export default async function Page(props: PageProps) {
-  const { tool } = await props.params;
-  const toolDef = getToolBySlug(tool);
+function titleCaseCategory(input: string) {
+  const s = input.trim();
+  if (!s) return s;
+  return s.slice(0, 1).toUpperCase() + s.slice(1).toLowerCase();
+}
 
-  if (!toolDef) {
+export default async function Page({ params }: PageProps) {
+  const { tool: slug } = await params;
+
+  const tool = getToolBySlug(slug);
+
+  if (!tool) {
     notFound();
   }
 
-  const categoryLabel = toolDef.category.toUpperCase();
-
-  const inputLabel =
-    toolDef.input_type === "pdf"
-      ? "Upload PDF file"
-      : toolDef.input_type === "csv"
-      ? "Upload CSV file"
-      : "Upload file";
-
-  const accept =
-    toolDef.input_type === "pdf"
-      ? ".pdf"
-      : toolDef.input_type === "csv"
-      ? ".csv,.tsv,.txt"
-      : undefined;
-
-  const allTools = getAllTools();
-  const related = allTools.filter(
-    (t) => t.category === toolDef.category && t.tool_slug !== toolDef.tool_slug
-  );
+  const categoryLabel = titleCaseCategory(tool.category);
 
   return (
-    <div className="space-y-12">
-      <nav className="text-sm text-muted-foreground">
-        <a href="/" className="hover:underline">
-          Tools
-        </a>
-        {" / "}
-        <span>{categoryLabel}</span>
-      </nav>
+    <div className="space-y-8">
+      <div className="space-y-4">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/">Tools</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href={`/?category=${encodeURIComponent(tool.category)}`}>
+                  {categoryLabel}
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>{tool.title}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {toolDef.title}
-        </h1>
-        <p className="text-base text-muted-foreground">
-          {toolDef.problem_solved}
-        </p>
-      </header>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">{tool.title}</h1>
+          <p className="text-sm text-muted-foreground">{tool.problem_solved}</p>
+        </div>
+      </div>
 
-      <section className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">
-              {inputLabel}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {toolDef.tool_slug === "csv-dedupe" ? (
-              <CsvDedupeClient />
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="file">File</Label>
-                <Input id="file" type="file" accept={accept} />
-                <Button disabled>Run (not implemented)</Button>
+      <Separator />
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-medium">Run</CardTitle>
+              <CardDescription>
+                Upload a file, run the tool, and preview the result.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tool.tool_slug === "csv-dedupe" ? (
+                <CsvDedupeClient />
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  Tool runtime not implemented yet.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-medium">What this tool does</CardTitle>
+              <CardDescription>
+                A short, factual description of the output and behavior.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-base">{tool.problem_solved}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-medium">FAQ</CardTitle>
+              <CardDescription>Basic handling and payment notes.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <div className="text-sm font-medium">How is my file handled?</div>
+                <p className="text-sm text-muted-foreground">
+                  Files are processed temporarily and deleted within a short period. Detailed handling will be documented.
+                </p>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
 
-      <section>
-        {toolDef.tool_slug === "csv-dedupe" ? null : <ToolPreview locked />}
-      </section>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">How fast is processing?</div>
+                <p className="text-sm text-muted-foreground">
+                  Processing times vary by tool and file size. More details coming soon.
+                </p>
+              </div>
 
-      <section>
-        {toolDef.tool_slug === "csv-dedupe" ? null : <ToolUnlock />}
-      </section>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Are payments secure?</div>
+                <p className="text-sm text-muted-foreground">
+                  Payments are handled through an external provider. Full integration is coming soon.
+                </p>
+              </div>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">What this tool does</h2>
-        <p className="text-base text-muted-foreground">
-          {toolDef.problem_solved}
-        </p>
-      </section>
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Do you store my data?</div>
+                <p className="text-sm text-muted-foreground">
+                  No permanent storage is planned in the MVP. A detailed deletion policy will be added soon.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-      <section className="space-y-6">
-        <h2 className="text-xl font-semibold">FAQ</h2>
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-medium">How is my file handled?</h3>
-          <p className="text-base text-muted-foreground">
-            Files are processed temporarily and deleted within a short period.
-            Detailed handling will be documented.
-          </p>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-medium">Related tools</CardTitle>
+              <CardDescription>More tools in the same category.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">No related tools yet.</p>
+            </CardContent>
+          </Card>
         </div>
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-medium">How fast is processing?</h3>
-          <p className="text-base text-muted-foreground">
-            Processing times vary by tool and file size. More details coming
-            soon.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-medium">Are payments secure?</h3>
-          <p className="text-base text-muted-foreground">
-            Payments are handled through an external provider. Full integration
-            is coming soon.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-medium">Do you store my data?</h3>
-          <p className="text-base text-muted-foreground">
-            No permanent storage is planned in the MVP. A detailed deletion
-            policy will be added soon.
-          </p>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Related tools</h2>
-        {related.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No related tools yet.</p>
-        ) : (
-          <ul className="list-disc pl-5 space-y-1">
-            {related.map((rt) => (
-              <li key={rt.tool_slug}>
-                <a
-                  href={`/${rt.tool_slug}`}
-                  className="text-base hover:underline"
-                >
-                  {rt.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      </div>
     </div>
   );
 }
