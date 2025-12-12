@@ -21,7 +21,11 @@ export async function POST(req: Request) {
     .filter((line) => line.length > 0);
   const preview = lines.slice(0, 5).join("\n");
 
-  const stored = createResult(resultText, "text/csv; charset=utf-8", "result.csv");
+  const stored = await createResult(
+    resultText,
+    "text/csv; charset=utf-8",
+    "result.csv"
+  );
 
   return NextResponse.json({
     preview,

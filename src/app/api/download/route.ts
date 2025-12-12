@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     return new NextResponse("Invalid token", { status: 401 });
   }
 
-  const stored = consumeResultForToken(token);
+  const stored = await consumeResultForToken(token);
 
   if (!stored) {
     return new NextResponse("Invalid token", { status: 401 });
