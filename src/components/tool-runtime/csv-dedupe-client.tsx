@@ -74,24 +74,9 @@ export function CsvDedupeClient() {
     setDownloadStatus("ready");
   }
 
-  async function handleUnlock(tokenValue: string) {
+  function handleUnlock(tokenValue: string) {
     setToken(tokenValue);
     setDownloadStatus("idle");
-
-    if (!resultId) {
-      return;
-    }
-
-    await fetch("/api/register-download", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        token: tokenValue,
-        resultId,
-      }),
-    }).catch(() => {});
   }
 
   return (

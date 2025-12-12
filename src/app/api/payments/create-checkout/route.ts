@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
+import { cleanupCheckoutMeta, setCheckoutMeta } from "@/lib/checkoutStore";
 
 export async function POST(req: Request) {
+  cleanupCheckoutMeta(300000);
+
   const body = await req.json().catch(() => null);
 
   const toolSlug = body?.toolSlug as string | undefined;
@@ -12,6 +15,7 @@ export async function POST(req: Request) {
   }
 
   const checkoutId = crypto.randomUUID();
+  setCheckoutMeta(checkoutId, toolSlug, resultId);
 
   return NextResponse.json({
     ok: true,
