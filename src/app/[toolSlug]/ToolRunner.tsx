@@ -194,10 +194,6 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           </button>
         </section>
       )}
-
-      <footer>
-        <small>Bookmark this tool for later use.</small>
-      </footer>
     </main>
   )
 }
