@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 
 type Tool = {
   slug: string
@@ -13,22 +13,28 @@ type Tool = {
 type State =
   | { kind: "idle" }
   | { kind: "previewing" }
-  | {
-      kind: "preview_ready"
-      runId: string
-      totalRows: number
-      uniqueRows: number
-      duplicates: number
-    }
-  | { kind: "processing" }
+  | { kind: "preview_ready"; runId: string; totalRows: number; uniqueRows: number; duplicates: number }
+  | { kind: "processing"; runId: string }
+  | { kind: "ready"; runId: string }
   | { kind: "error"; message: string }
 
 export function ToolRunner({ tool }: { tool: Tool }) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [state, setState] = useState<State>({ kind: "idle" })
 
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
+
+  function clearFileInput() {
+    if (inputRef.current) inputRef.current.value = ""
+  }
+
+  function reset() {
+    setFile(null)
+    setState({ kind: "idle" })
+    clearFileInput()
+  }
 
   async function onGeneratePreview() {
     if (!file) return
@@ -60,7 +66,8 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
   async function onPayAndDownload() {
     if (state.kind !== "preview_ready") return
-    setState({ kind: "processing" })
+
+    setState({ kind: "processing", runId: state.runId })
 
     const unlock = await fetch("/api/unlock", {
       method: "POST",
@@ -82,6 +89,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       return
     }
 
+    setState({ kind: "ready", runId: state.runId })
     window.location.href = `/download/${state.runId}`
   }
 
@@ -93,16 +101,25 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       <section>
         <h2>Upload</h2>
         <input
+          ref={inputRef}
           type="file"
           accept={acceptAttr}
+          onClick={() => clearFileInput()}
           onChange={(e) => {
-            setFile(e.target.files?.[0] ?? null)
+            const f = e.target.files?.[0] ?? null
+            setFile(f)
             setState({ kind: "idle" })
           }}
         />
-        <button onClick={onGeneratePreview} disabled={!file || state.kind === "previewing"}>
-          Generate preview
-        </button>
+
+        {state.kind === "idle" && (
+          <button onClick={onGeneratePreview} disabled={!file}>
+            Generate preview
+          </button>
+        )}
+
+        {state.kind === "previewing" && <div style={{ marginTop: 10, color: "var(--muted)" }}>Analyzing file…</div>}
+        {state.kind === "error" && <div style={{ marginTop: 10 }}>{state.message}</div>}
       </section>
 
       {state.kind === "preview_ready" && (
@@ -110,16 +127,24 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           <h2>Preview</h2>
           <div>{state.duplicates} duplicate rows will be removed.</div>
           <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
-          <button onClick={onPayAndDownload}>
+
+          <button onClick={onPayAndDownload} style={{ marginTop: 12 }}>
             Pay ${tool.priceUsd} and download CSV
           </button>
-        </section>
-      )}
 
-      {state.kind === "previewing" && (
-        <section>
-          <h2>Preview</h2>
-          <div>Analyzing file…</div>
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              onClick={reset}
+              style={{
+                background: "transparent",
+                color: "var(--muted)",
+                border: "1px solid var(--border)"
+              }}
+            >
+              Change file
+            </button>
+          </div>
         </section>
       )}
 
@@ -130,10 +155,26 @@ export function ToolRunner({ tool }: { tool: Tool }) {
         </section>
       )}
 
-      {state.kind === "error" && (
+      {state.kind === "ready" && (
         <section>
-          <h2>Error</h2>
-          <div>{state.message}</div>
+          <h2>Download</h2>
+          <div>Download should start automatically.</div>
+          <div style={{ marginTop: 10 }}>
+            <a href={`/download/${state.runId}`}>Download CSV</a>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              onClick={reset}
+              style={{
+                background: "transparent",
+                color: "var(--muted)",
+                border: "1px solid var(--border)"
+              }}
+            >
+              Run again
+            </button>
+          </div>
         </section>
       )}
 
