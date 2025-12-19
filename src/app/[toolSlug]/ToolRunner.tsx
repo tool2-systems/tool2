@@ -105,7 +105,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
         <p className="text-sm leading-6 text-muted-foreground">{tool.oneLiner}</p>
       </header>
 
-      <div className="mt-8 space-y-5">
+      <div className="mt-8 space-y-6">
         {state.kind !== "ready" && (
           <Card className="shadow-sm">
             <CardHeader className="space-y-1">
@@ -131,8 +131,12 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                   <Button variant="secondary" type="button" onClick={() => inputRef.current?.click()}>
                     Choose file
                   </Button>
-                  <div className="text-sm text-foreground">
-                    {file ? file.name : <span className="text-muted-foreground">No file selected.</span>}
+                  <div className="min-w-0 text-sm text-foreground">
+                    {file ? (
+                      <span className="block max-w-full truncate">{file.name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">No file selected.</span>
+                    )}
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground">
