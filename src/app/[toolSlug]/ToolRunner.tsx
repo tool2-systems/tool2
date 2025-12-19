@@ -13,9 +13,14 @@ type Tool = {
 type State =
   | { kind: "idle" }
   | { kind: "previewing" }
-  | { kind: "preview_ready"; runId: string; totalRows: number; uniqueRows: number; duplicates: number }
-  | { kind: "processing"; runId: string }
-  | { kind: "ready"; runId: string }
+  | {
+      kind: "preview_ready"
+      runId: string
+      totalRows: number
+      uniqueRows: number
+      duplicates: number
+    }
+  | { kind: "processing" }
   | { kind: "error"; message: string }
 
 export function ToolRunner({ tool }: { tool: Tool }) {
@@ -55,7 +60,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
   async function onPayAndDownload() {
     if (state.kind !== "preview_ready") return
-    setState({ kind: "processing", runId: state.runId })
+    setState({ kind: "processing" })
 
     const unlock = await fetch("/api/unlock", {
       method: "POST",
@@ -77,7 +82,6 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       return
     }
 
-    setState({ kind: "ready", runId: state.runId })
     window.location.href = `/download/${state.runId}`
   }
 
@@ -87,7 +91,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       <p>{tool.oneLiner}</p>
 
       <section>
-        <h2>Input</h2>
+        <h2>Upload</h2>
         <input
           type="file"
           accept={acceptAttr}
@@ -101,29 +105,40 @@ export function ToolRunner({ tool }: { tool: Tool }) {
         </button>
       </section>
 
-      <section>
-        <h2>Preview</h2>
-        {state.kind === "idle" && <div>Upload a file to see what will change.</div>}
-        {state.kind === "previewing" && <div>Analyzing file…</div>}
-        {state.kind === "preview_ready" && (
-          <div>
-            <div>{state.duplicates} duplicate rows will be removed.</div>
-            <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
-          </div>
-        )}
-        {state.kind === "processing" && <div>Preparing your file…</div>}
-        {state.kind === "error" && <div>{state.message}</div>}
-      </section>
+      {state.kind === "preview_ready" && (
+        <section>
+          <h2>Preview</h2>
+          <div>{state.duplicates} duplicate rows will be removed.</div>
+          <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
+          <button onClick={onPayAndDownload}>
+            Pay ${tool.priceUsd} and download CSV
+          </button>
+        </section>
+      )}
 
-      <section>
-        <h2>Download</h2>
-        <button onClick={onPayAndDownload} disabled={state.kind !== "preview_ready"}>
-          Pay ${tool.priceUsd} and download
-        </button>
-      </section>
+      {state.kind === "previewing" && (
+        <section>
+          <h2>Preview</h2>
+          <div>Analyzing file…</div>
+        </section>
+      )}
+
+      {state.kind === "processing" && (
+        <section>
+          <h2>Preparing</h2>
+          <div>Preparing your file…</div>
+        </section>
+      )}
+
+      {state.kind === "error" && (
+        <section>
+          <h2>Error</h2>
+          <div>{state.message}</div>
+        </section>
+      )}
 
       <footer>
-        <small>Save this link if you need it again.</small>
+        <small>Save this page if you need it again.</small>
       </footer>
     </main>
   )
