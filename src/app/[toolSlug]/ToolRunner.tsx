@@ -30,10 +30,14 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     if (inputRef.current) inputRef.current.value = ""
   }
 
-  function reset() {
+  function resetToNewFile() {
     setFile(null)
     setState({ kind: "idle" })
     clearFileInput()
+  }
+
+  function startDownload(runId: string) {
+    window.location.href = `/download/${runId}`
   }
 
   async function onGeneratePreview() {
@@ -89,8 +93,9 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       return
     }
 
-    setState({ kind: "ready", runId: state.runId })
-    window.location.href = `/download/${state.runId}`
+    const runId = state.runId
+    setState({ kind: "ready", runId })
+    startDownload(runId)
   }
 
   return (
@@ -98,29 +103,31 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       <h1>{tool.title}</h1>
       <p>{tool.oneLiner}</p>
 
-      <section>
-        <h2>Upload</h2>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={acceptAttr}
-          onClick={() => clearFileInput()}
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null
-            setFile(f)
-            setState({ kind: "idle" })
-          }}
-        />
+      {state.kind !== "ready" && (
+        <section>
+          <h2>Upload</h2>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={acceptAttr}
+            onClick={() => clearFileInput()}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null
+              setFile(f)
+              setState({ kind: "idle" })
+            }}
+          />
 
-        {state.kind === "idle" && (
-          <button onClick={onGeneratePreview} disabled={!file}>
-            Generate preview
-          </button>
-        )}
+          {state.kind === "idle" && (
+            <button onClick={onGeneratePreview} disabled={!file}>
+              Generate preview
+            </button>
+          )}
 
-        {state.kind === "previewing" && <div style={{ marginTop: 10, color: "var(--muted)" }}>Analyzing file…</div>}
-        {state.kind === "error" && <div style={{ marginTop: 10 }}>{state.message}</div>}
-      </section>
+          {state.kind === "previewing" && <div style={{ marginTop: 10, color: "var(--muted)" }}>Analyzing file…</div>}
+          {state.kind === "error" && <div style={{ marginTop: 10 }}>{state.message}</div>}
+        </section>
+      )}
 
       {state.kind === "preview_ready" && (
         <section>
@@ -135,7 +142,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           <div style={{ marginTop: 10 }}>
             <button
               type="button"
-              onClick={reset}
+              onClick={resetToNewFile}
               style={{
                 background: "transparent",
                 color: "var(--muted)",
@@ -158,22 +165,20 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       {state.kind === "ready" && (
         <section>
           <h2>Download</h2>
-          <div>Download should start automatically.</div>
-          <div style={{ marginTop: 10 }}>
-            <a href={`/download/${state.runId}`}>Download CSV</a>
+          <div>Download started. If nothing happens, click the button below.</div>
+
+          <button onClick={() => startDownload(state.runId)} style={{ marginTop: 12 }}>
+            Download CSV
+          </button>
+
+          <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 13 }}>
+            You can download again without paying.
           </div>
-          <div style={{ marginTop: 10 }}>
-            <button
-              type="button"
-              onClick={reset}
-              style={{
-                background: "transparent",
-                color: "var(--muted)",
-                border: "1px solid var(--border)"
-              }}
-            >
-              Run again
-            </button>
+
+          <div style={{ marginTop: 12 }}>
+            <a href="#" onClick={(e) => { e.preventDefault(); resetToNewFile(); }}>
+              Upload a new file
+            </a>
           </div>
         </section>
       )}
