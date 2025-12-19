@@ -106,7 +106,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     <main className="mx-auto w-full max-w-2xl px-4 py-10">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">{tool.title}</h1>
-        <p className="text-sm text-muted-foreground">{tool.oneLiner}</p>
+        <p className="text-sm">{tool.oneLiner}</p>
       </div>
 
       <div className="mt-8 space-y-6">
@@ -134,13 +134,8 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                 </Button>
               )}
 
-              {state.kind === "previewing" && (
-                <div className="text-sm text-muted-foreground">Analyzing file…</div>
-              )}
-
-              {state.kind === "error" && (
-                <div className="text-sm">{state.message}</div>
-              )}
+              {state.kind === "previewing" && <div className="text-sm">Analyzing file…</div>}
+              {state.kind === "error" && <div className="text-sm">{state.message}</div>}
             </CardContent>
           </Card>
         )}
@@ -153,21 +148,14 @@ export function ToolRunner({ tool }: { tool: Tool }) {
             <CardContent className="space-y-4">
               <div className="space-y-1 text-sm">
                 <div>{state.duplicates} duplicate rows will be removed.</div>
-                <div>
-                  {state.uniqueRows} rows will remain out of {state.totalRows}.
-                </div>
+                <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
               </div>
 
               <Separator />
 
               <div className="space-y-3">
-                <Button onClick={onPayAndDownload}>
-                  Pay ${tool.priceUsd} and download CSV
-                </Button>
-
-                <Button variant="secondary" onClick={resetToNewFile}>
-                  Upload a new file
-                </Button>
+                <Button onClick={onPayAndDownload}>Pay ${tool.priceUsd} and download CSV</Button>
+                <Button variant="secondary" onClick={resetToNewFile}>Upload a new file</Button>
               </div>
             </CardContent>
           </Card>
@@ -179,7 +167,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
               <CardTitle className="text-base">Preparing</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-sm text-muted-foreground">Preparing file…</div>
+              <div className="text-sm">Preparing file…</div>
             </CardContent>
           </Card>
         )}
@@ -190,20 +178,12 @@ export function ToolRunner({ tool }: { tool: Tool }) {
               <CardTitle className="text-base">Download</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-sm text-muted-foreground">Download started.</div>
+              <div className="text-sm">Download started.</div>
 
               <div className="space-y-3">
-                <Button onClick={() => startDownload(state.runId)}>
-                  Download CSV
-                </Button>
-
-                <div className="text-xs text-muted-foreground">
-                  File can be downloaded again without payment.
-                </div>
-
-                <Button variant="secondary" onClick={resetToNewFile}>
-                  Upload a new file
-                </Button>
+                <Button onClick={() => startDownload(state.runId)}>Download CSV</Button>
+                <div className="text-xs text-muted-foreground">File can be downloaded again without payment.</div>
+                <Button variant="secondary" onClick={resetToNewFile}>Upload a new file</Button>
               </div>
             </CardContent>
           </Card>

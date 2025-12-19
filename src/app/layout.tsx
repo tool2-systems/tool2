@@ -9,14 +9,14 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
+      <body className="min-h-screen bg-background text-foreground">
         {children}
-        <div style={{ maxWidth: "var(--maxw)", margin: "0 auto", padding: "0 16px 28px" }}>
-          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, fontSize: 13, color: "var(--muted)" }}>
+        <div className="mx-auto w-full max-w-2xl px-4 pb-8">
+          <div className="border-t pt-3 text-xs text-muted-foreground">
             <Link href="/terms">Terms</Link>
-            <span style={{ padding: "0 10px" }}>•</span>
+            <span className="px-2">•</span>
             <Link href="/privacy">Privacy</Link>
-            <span style={{ padding: "0 10px" }}>•</span>
+            <span className="px-2">•</span>
             <Link href="/support">Support</Link>
           </div>
         </div>
