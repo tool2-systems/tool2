@@ -10,18 +10,24 @@ type Tool = {
   input: { accepts: string[]; maxSizeMb: number }
 }
 
-type PreviewState =
+type Preview =
   | { kind: "idle" }
   | { kind: "previewing" }
-  | { kind: "preview_ready"; runId: string; preview: Record<string, number> }
-  | { kind: "paid"; runId: string; preview: Record<string, number> }
-  | { kind: "processing"; runId: string; preview: Record<string, number> }
-  | { kind: "ready"; runId: string; preview: Record<string, number> }
+  | {
+      kind: "preview_ready"
+      runId: string
+      totalRows: number
+      uniqueRows: number
+      duplicates: number
+    }
+  | { kind: "paid"; runId: string }
+  | { kind: "processing"; runId: string }
+  | { kind: "ready"; runId: string }
   | { kind: "error"; message: string }
 
 export function ToolRunner({ tool }: { tool: Tool }) {
   const [file, setFile] = useState<File | null>(null)
-  const [state, setState] = useState<PreviewState>({ kind: "idle" })
+  const [state, setState] = useState<Preview>({ kind: "idle" })
 
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
@@ -45,7 +51,13 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     }
 
     const json = await res.json()
-    setState({ kind: "preview_ready", runId: json.runId, preview: json.preview })
+    setState({
+      kind: "preview_ready",
+      runId: json.runId,
+      totalRows: json.preview.totalRows,
+      uniqueRows: json.preview.uniqueRows,
+      duplicates: json.preview.duplicates
+    })
   }
 
   async function onPay() {
@@ -59,12 +71,12 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       setState({ kind: "error", message: "Payment failed." })
       return
     }
-    setState({ kind: "paid", runId: state.runId, preview: state.preview })
+    setState({ kind: "paid", runId: state.runId })
   }
 
   async function onProcess() {
     if (state.kind !== "paid") return
-    setState({ kind: "processing", runId: state.runId, preview: state.preview })
+    setState({ kind: "processing", runId: state.runId })
     const res = await fetch(`/api/process/${tool.slug}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -74,7 +86,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       setState({ kind: "error", message: "Processing failed." })
       return
     }
-    setState({ kind: "ready", runId: state.runId, preview: state.preview })
+    setState({ kind: "ready", runId: state.runId })
   }
 
   function onDownload() {
@@ -93,8 +105,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           type="file"
           accept={acceptAttr}
           onChange={(e) => {
-            const f = e.target.files?.[0] ?? null
-            setFile(f)
+            setFile(e.target.files?.[0] ?? null)
             setState({ kind: "idle" })
           }}
         />
@@ -105,30 +116,23 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
       <section>
         <h2>Preview</h2>
-        {state.kind === "idle" && <div>Not generated</div>}
-        {state.kind === "previewing" && <div>Generating…</div>}
-        {state.kind === "error" && <div>{state.message}</div>}
-        {(state.kind === "preview_ready" ||
-          state.kind === "paid" ||
-          state.kind === "processing" ||
-          state.kind === "ready") && (
+        {state.kind === "idle" && <div>Upload a file to see what will change.</div>}
+        {state.kind === "previewing" && <div>Analyzing file…</div>}
+        {state.kind === "preview_ready" && (
           <div>
-            <div>runId: {state.runId}</div>
-            <ul>
-              {Object.entries(state.preview).map(([k, v]) => (
-                <li key={k}>
-                  {k}: {v}
-                </li>
-              ))}
-            </ul>
+            <div>{state.duplicates} duplicate rows will be removed.</div>
+            <div>
+              {state.uniqueRows} rows will remain out of {state.totalRows}.
+            </div>
           </div>
         )}
+        {state.kind === "error" && <div>{state.message}</div>}
       </section>
 
       <section>
         <h2>Paywall</h2>
         <button onClick={onPay} disabled={state.kind !== "preview_ready"}>
-          Pay to download (${tool.priceUsd})
+          Pay ${tool.priceUsd} to download clean CSV
         </button>
       </section>
 
