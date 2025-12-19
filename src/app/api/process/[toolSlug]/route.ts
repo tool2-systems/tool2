@@ -1,0 +1,38 @@
+import { NextResponse } from "next/server"
+import { promises as fs } from "fs"
+import path from "path"
+import { loadRun } from "@/lib/store"
+import { inputsDir } from "@/lib/paths"
+
+export async function POST(req: Request, ctx: { params: Promise<{ toolSlug: string }> }) {
+  const { toolSlug } = await ctx.params
+
+  const body = (await req.json().catch(() => null)) as { runId?: string } | null
+  const runId = body?.runId
+  if (!runId) return NextResponse.json({ error: "no runId" }, { status: 400 })
+
+  const run = await loadRun(runId)
+  if (run.toolSlug !== toolSlug) return NextResponse.json({ error: "mismatch" }, { status: 400 })
+  if (run.status !== "paid") return NextResponse.json({ error: "not paid" }, { status: 402 })
+  if (toolSlug !== "remove-duplicate-csv") return NextResponse.json({ error: "no handler" }, { status: 400 })
+
+  const inputPath = path.join(inputsDir(), `${runId}.csv`)
+  const raw = await fs.readFile(inputPath, "utf8")
+
+  const normalized = raw.replace(/\r\n/g, "\n")
+  const lines = normalized.split("\n")
+
+  const seen = new Set<string>()
+  const out: string[] = []
+
+  for (const line of lines) {
+    if (!seen.has(line)) {
+      seen.add(line)
+      out.push(line)
+    }
+  }
+
+  await fs.writeFile(run.outputPath, out.join("\n"), "utf8")
+
+  return NextResponse.json({ ok: true })
+}

@@ -14,6 +14,9 @@ type PreviewState =
   | { kind: "idle" }
   | { kind: "previewing" }
   | { kind: "preview_ready"; runId: string; preview: Record<string, number> }
+  | { kind: "paid"; runId: string; preview: Record<string, number> }
+  | { kind: "processing"; runId: string; preview: Record<string, number> }
+  | { kind: "ready"; runId: string; preview: Record<string, number> }
   | { kind: "error"; message: string }
 
 export function ToolRunner({ tool }: { tool: Tool }) {
@@ -45,6 +48,40 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     setState({ kind: "preview_ready", runId: json.runId, preview: json.preview })
   }
 
+  async function onPay() {
+    if (state.kind !== "preview_ready") return
+    const res = await fetch("/api/unlock", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ runId: state.runId })
+    })
+    if (!res.ok) {
+      setState({ kind: "error", message: "Payment failed." })
+      return
+    }
+    setState({ kind: "paid", runId: state.runId, preview: state.preview })
+  }
+
+  async function onProcess() {
+    if (state.kind !== "paid") return
+    setState({ kind: "processing", runId: state.runId, preview: state.preview })
+    const res = await fetch(`/api/process/${tool.slug}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ runId: state.runId })
+    })
+    if (!res.ok) {
+      setState({ kind: "error", message: "Processing failed." })
+      return
+    }
+    setState({ kind: "ready", runId: state.runId, preview: state.preview })
+  }
+
+  function onDownload() {
+    if (state.kind !== "ready") return
+    window.location.href = `/download/${state.runId}`
+  }
+
   return (
     <main>
       <h1>{tool.title}</h1>
@@ -71,7 +108,10 @@ export function ToolRunner({ tool }: { tool: Tool }) {
         {state.kind === "idle" && <div>Not generated</div>}
         {state.kind === "previewing" && <div>Generating…</div>}
         {state.kind === "error" && <div>{state.message}</div>}
-        {state.kind === "preview_ready" && (
+        {(state.kind === "preview_ready" ||
+          state.kind === "paid" ||
+          state.kind === "processing" ||
+          state.kind === "ready") && (
           <div>
             <div>runId: {state.runId}</div>
             <ul>
@@ -87,12 +127,19 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
       <section>
         <h2>Paywall</h2>
-        <button disabled={state.kind !== "preview_ready"}>Pay to download (${tool.priceUsd})</button>
+        <button onClick={onPay} disabled={state.kind !== "preview_ready"}>
+          Pay to download (${tool.priceUsd})
+        </button>
       </section>
 
       <section>
         <h2>Delivery</h2>
-        <button disabled>Download file</button>
+        <button onClick={onProcess} disabled={state.kind !== "paid"}>
+          Prepare file
+        </button>
+        <button onClick={onDownload} disabled={state.kind !== "ready"}>
+          Download file
+        </button>
       </section>
 
       <footer>
