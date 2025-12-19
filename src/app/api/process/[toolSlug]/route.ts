@@ -22,16 +22,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ toolSlug: stri
   const normalized = raw.replace(/\r\n/g, "\n")
   const lines = normalized.split("\n")
 
-  const seen = new Set<string>()
-  const out: string[] = []
+  const header = lines.length ? lines[0] : ""
+  const bodyLines = lines.slice(1)
 
-  for (const line of lines) {
+  const seen = new Set<string>()
+  const outBody: string[] = []
+
+  for (const line of bodyLines) {
     if (!seen.has(line)) {
       seen.add(line)
-      out.push(line)
+      outBody.push(line)
     }
   }
 
+  const out = header ? [header, ...outBody] : outBody
   await fs.writeFile(run.outputPath, out.join("\n"), "utf8")
 
   return NextResponse.json({ ok: true })
