@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
 
 type Tool = {
   slug: string
@@ -30,14 +30,10 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
 
-  function clearFileInput() {
-    if (inputRef.current) inputRef.current.value = ""
-  }
-
   function resetToNewFile() {
     setFile(null)
     setState({ kind: "idle" })
-    clearFileInput()
+    if (inputRef.current) inputRef.current.value = ""
   }
 
   function startDownload(runId: string) {
@@ -116,17 +112,33 @@ export function ToolRunner({ tool }: { tool: Tool }) {
               <CardTitle className="text-base">Upload</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Input
+              <input
                 ref={inputRef}
                 type="file"
                 accept={acceptAttr}
-                onClick={() => clearFileInput()}
+                className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null
                   setFile(f)
                   setState({ kind: "idle" })
                 }}
               />
+
+              <div className="space-y-2">
+                <Label>File</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    Choose file
+                  </Button>
+                  <div className="text-sm">
+                    {file ? file.name : "No file selected."}
+                  </div>
+                </div>
+              </div>
 
               {state.kind === "idle" && (
                 <Button onClick={onGeneratePreview} disabled={!file}>
