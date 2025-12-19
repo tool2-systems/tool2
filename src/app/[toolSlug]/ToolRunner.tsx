@@ -10,24 +10,17 @@ type Tool = {
   input: { accepts: string[]; maxSizeMb: number }
 }
 
-type Preview =
+type State =
   | { kind: "idle" }
   | { kind: "previewing" }
-  | {
-      kind: "preview_ready"
-      runId: string
-      totalRows: number
-      uniqueRows: number
-      duplicates: number
-    }
-  | { kind: "paid"; runId: string }
+  | { kind: "preview_ready"; runId: string; totalRows: number; uniqueRows: number; duplicates: number }
   | { kind: "processing"; runId: string }
   | { kind: "ready"; runId: string }
   | { kind: "error"; message: string }
 
 export function ToolRunner({ tool }: { tool: Tool }) {
   const [file, setFile] = useState<File | null>(null)
-  const [state, setState] = useState<Preview>({ kind: "idle" })
+  const [state, setState] = useState<State>({ kind: "idle" })
 
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
@@ -60,37 +53,31 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     })
   }
 
-  async function onPay() {
+  async function onPayAndDownload() {
     if (state.kind !== "preview_ready") return
-    const res = await fetch("/api/unlock", {
+    setState({ kind: "processing", runId: state.runId })
+
+    const unlock = await fetch("/api/unlock", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ runId: state.runId })
     })
-    if (!res.ok) {
+    if (!unlock.ok) {
       setState({ kind: "error", message: "Payment failed." })
       return
     }
-    setState({ kind: "paid", runId: state.runId })
-  }
 
-  async function onProcess() {
-    if (state.kind !== "paid") return
-    setState({ kind: "processing", runId: state.runId })
-    const res = await fetch(`/api/process/${tool.slug}`, {
+    const proc = await fetch(`/api/process/${tool.slug}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ runId: state.runId })
     })
-    if (!res.ok) {
+    if (!proc.ok) {
       setState({ kind: "error", message: "Processing failed." })
       return
     }
-    setState({ kind: "ready", runId: state.runId })
-  }
 
-  function onDownload() {
-    if (state.kind !== "ready") return
+    setState({ kind: "ready", runId: state.runId })
     window.location.href = `/download/${state.runId}`
   }
 
@@ -121,28 +108,17 @@ export function ToolRunner({ tool }: { tool: Tool }) {
         {state.kind === "preview_ready" && (
           <div>
             <div>{state.duplicates} duplicate rows will be removed.</div>
-            <div>
-              {state.uniqueRows} rows will remain out of {state.totalRows}.
-            </div>
+            <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
           </div>
         )}
+        {state.kind === "processing" && <div>Preparing your file…</div>}
         {state.kind === "error" && <div>{state.message}</div>}
       </section>
 
       <section>
-        <h2>Paywall</h2>
-        <button onClick={onPay} disabled={state.kind !== "preview_ready"}>
-          Pay ${tool.priceUsd} to download clean CSV
-        </button>
-      </section>
-
-      <section>
-        <h2>Delivery</h2>
-        <button onClick={onProcess} disabled={state.kind !== "paid"}>
-          Prepare file
-        </button>
-        <button onClick={onDownload} disabled={state.kind !== "ready"}>
-          Download file
+        <h2>Download</h2>
+        <button onClick={onPayAndDownload} disabled={state.kind !== "preview_ready"}>
+          Pay ${tool.priceUsd} and download
         </button>
       </section>
 
