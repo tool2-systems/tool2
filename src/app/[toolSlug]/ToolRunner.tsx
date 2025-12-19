@@ -165,21 +165,28 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       {state.kind === "ready" && (
         <section>
           <h2>Download</h2>
-          <div>Download started. If nothing happens, click the button below.</div>
+          <div>Download started. If nothing happens, click below.</div>
 
           <button onClick={() => startDownload(state.runId)} style={{ marginTop: 12 }}>
             Download CSV
           </button>
 
-          <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 13 }}>
+          <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
             You can download again without paying.
           </div>
 
-          <div style={{ marginTop: 12 }}>
-            <a href="#" onClick={(e) => { e.preventDefault(); resetToNewFile(); }}>
-              Upload a new file
-            </a>
-          </div>
+          <button
+            type="button"
+            onClick={resetToNewFile}
+            style={{
+              marginTop: 12,
+              background: "transparent",
+              color: "var(--muted)",
+              border: "1px solid var(--border)"
+            }}
+          >
+            Upload a new file
+          </button>
         </section>
       )}
 
