@@ -1,6 +1,10 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
 
 type Tool = {
   slug: string
@@ -99,101 +103,112 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   }
 
   return (
-    <main>
-      <h1>{tool.title}</h1>
-      <p>{tool.oneLiner}</p>
+    <main className="mx-auto w-full max-w-2xl px-4 py-10">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">{tool.title}</h1>
+        <p className="text-sm text-muted-foreground">{tool.oneLiner}</p>
+      </div>
 
-      {state.kind !== "ready" && (
-        <section>
-          <h2>Upload</h2>
-          <input
-            ref={inputRef}
-            type="file"
-            accept={acceptAttr}
-            onClick={() => clearFileInput()}
-            onChange={(e) => {
-              const f = e.target.files?.[0] ?? null
-              setFile(f)
-              setState({ kind: "idle" })
-            }}
-          />
+      <div className="mt-8 space-y-6">
+        {state.kind !== "ready" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Upload</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Input
+                ref={inputRef}
+                type="file"
+                accept={acceptAttr}
+                onClick={() => clearFileInput()}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null
+                  setFile(f)
+                  setState({ kind: "idle" })
+                }}
+              />
 
-          {state.kind === "idle" && (
-            <button onClick={onGeneratePreview} disabled={!file}>
-              Generate preview
-            </button>
-          )}
+              {state.kind === "idle" && (
+                <Button onClick={onGeneratePreview} disabled={!file}>
+                  Generate preview
+                </Button>
+              )}
 
-          {state.kind === "previewing" && (
-            <div style={{ marginTop: 10, color: "var(--muted)" }}>
-              Analyzing file…
-            </div>
-          )}
+              {state.kind === "previewing" && (
+                <div className="text-sm text-muted-foreground">Analyzing file…</div>
+              )}
 
-          {state.kind === "error" && <div style={{ marginTop: 10 }}>{state.message}</div>}
-        </section>
-      )}
+              {state.kind === "error" && (
+                <div className="text-sm">{state.message}</div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-      {state.kind === "preview_ready" && (
-        <section>
-          <h2>Preview</h2>
-          <div>{state.duplicates} duplicate rows will be removed.</div>
-          <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
+        {state.kind === "preview_ready" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Preview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1 text-sm">
+                <div>{state.duplicates} duplicate rows will be removed.</div>
+                <div>
+                  {state.uniqueRows} rows will remain out of {state.totalRows}.
+                </div>
+              </div>
 
-          <button onClick={onPayAndDownload} style={{ marginTop: 12 }}>
-            Pay ${tool.priceUsd} and download CSV
-          </button>
+              <Separator />
 
-          <div style={{ marginTop: 10 }}>
-            <button
-              type="button"
-              onClick={resetToNewFile}
-              style={{
-                background: "transparent",
-                color: "var(--muted)",
-                border: "1px solid var(--border)"
-              }}
-            >
-              Upload a new file
-            </button>
-          </div>
-        </section>
-      )}
+              <div className="space-y-3">
+                <Button onClick={onPayAndDownload}>
+                  Pay ${tool.priceUsd} and download CSV
+                </Button>
 
-      {state.kind === "processing" && (
-        <section>
-          <h2>Preparing</h2>
-          <div>Preparing file…</div>
-        </section>
-      )}
+                <Button variant="secondary" onClick={resetToNewFile}>
+                  Upload a new file
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      {state.kind === "ready" && (
-        <section>
-          <h2>Download</h2>
-          <div>Download started.</div>
+        {state.kind === "processing" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Preparing</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-muted-foreground">Preparing file…</div>
+            </CardContent>
+          </Card>
+        )}
 
-          <button onClick={() => startDownload(state.runId)} style={{ marginTop: 12 }}>
-            Download CSV
-          </button>
+        {state.kind === "ready" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Download</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-muted-foreground">Download started.</div>
 
-          <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
-            File can be downloaded again without payment.
-          </div>
+              <div className="space-y-3">
+                <Button onClick={() => startDownload(state.runId)}>
+                  Download CSV
+                </Button>
 
-          <button
-            type="button"
-            onClick={resetToNewFile}
-            style={{
-              marginTop: 12,
-              background: "transparent",
-              color: "var(--muted)",
-              border: "1px solid var(--border)"
-            }}
-          >
-            Upload a new file
-          </button>
-        </section>
-      )}
+                <div className="text-xs text-muted-foreground">
+                  File can be downloaded again without payment.
+                </div>
+
+                <Button variant="secondary" onClick={resetToNewFile}>
+                  Upload a new file
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </main>
   )
 }
