@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 
@@ -99,19 +99,20 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-10">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{tool.title}</h1>
-        <p className="text-sm">{tool.oneLiner}</p>
-      </div>
+    <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{tool.title}</h1>
+        <p className="text-sm leading-6 text-muted-foreground">{tool.oneLiner}</p>
+      </header>
 
-      <div className="mt-8 space-y-6">
+      <div className="mt-8 space-y-5">
         {state.kind !== "ready" && (
-          <Card>
-            <CardHeader>
+          <Card className="shadow-sm">
+            <CardHeader className="space-y-1">
               <CardTitle className="text-base">Upload</CardTitle>
+              <CardDescription>Select a file to generate a preview.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
               <input
                 ref={inputRef}
                 type="file"
@@ -125,39 +126,39 @@ export function ToolRunner({ tool }: { tool: Tool }) {
               />
 
               <div className="space-y-2">
-                <Label>File</Label>
+                <Label className="text-sm">File</Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={() => inputRef.current?.click()}
-                  >
+                  <Button variant="secondary" type="button" onClick={() => inputRef.current?.click()}>
                     Choose file
                   </Button>
-                  <div className="text-sm">
-                    {file ? file.name : "No file selected."}
+                  <div className="text-sm text-foreground">
+                    {file ? file.name : <span className="text-muted-foreground">No file selected.</span>}
                   </div>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Accepted: {acceptAttr || "file"} · Max {tool.input.maxSizeMb} MB
                 </div>
               </div>
 
-              {state.kind === "idle" && (
-                <Button onClick={onGeneratePreview} disabled={!file}>
+              <div className="space-y-2">
+                <Button onClick={onGeneratePreview} disabled={!file || state.kind === "previewing"} className="w-full sm:w-auto">
                   Generate preview
                 </Button>
-              )}
 
-              {state.kind === "previewing" && <div className="text-sm">Analyzing file…</div>}
-              {state.kind === "error" && <div className="text-sm">{state.message}</div>}
+                {state.kind === "previewing" && <div className="text-sm text-muted-foreground">Analyzing file…</div>}
+                {state.kind === "error" && <div className="text-sm">{state.message}</div>}
+              </div>
             </CardContent>
           </Card>
         )}
 
         {state.kind === "preview_ready" && (
-          <Card>
-            <CardHeader>
+          <Card className="shadow-sm">
+            <CardHeader className="space-y-1">
               <CardTitle className="text-base">Preview</CardTitle>
+              <CardDescription>Review the result before payment.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
               <div className="space-y-1 text-sm">
                 <div>{state.duplicates} duplicate rows will be removed.</div>
                 <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
@@ -166,36 +167,44 @@ export function ToolRunner({ tool }: { tool: Tool }) {
               <Separator />
 
               <div className="space-y-3">
-                <Button onClick={onPayAndDownload}>Pay ${tool.priceUsd} and download CSV</Button>
-                <Button variant="secondary" onClick={resetToNewFile}>Upload a new file</Button>
+                <Button onClick={onPayAndDownload} className="w-full sm:w-auto">
+                  Pay ${tool.priceUsd} and download CSV
+                </Button>
+                <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
+                  Upload a new file
+                </Button>
               </div>
             </CardContent>
           </Card>
         )}
 
         {state.kind === "processing" && (
-          <Card>
-            <CardHeader>
+          <Card className="shadow-sm">
+            <CardHeader className="space-y-1">
               <CardTitle className="text-base">Preparing</CardTitle>
+              <CardDescription>Processing the file for download.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-sm">Preparing file…</div>
+              <div className="text-sm text-muted-foreground">Preparing file…</div>
             </CardContent>
           </Card>
         )}
 
         {state.kind === "ready" && (
-          <Card>
-            <CardHeader>
+          <Card className="shadow-sm">
+            <CardHeader className="space-y-1">
               <CardTitle className="text-base">Download</CardTitle>
+              <CardDescription>Download should start automatically.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-sm">Download started.</div>
-
+            <CardContent className="space-y-5">
               <div className="space-y-3">
-                <Button onClick={() => startDownload(state.runId)}>Download CSV</Button>
+                <Button onClick={() => startDownload(state.runId)} className="w-full sm:w-auto">
+                  Download CSV
+                </Button>
                 <div className="text-xs text-muted-foreground">File can be downloaded again without payment.</div>
-                <Button variant="secondary" onClick={resetToNewFile}>Upload a new file</Button>
+                <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
+                  Upload a new file
+                </Button>
               </div>
             </CardContent>
           </Card>
