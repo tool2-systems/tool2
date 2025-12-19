@@ -43,7 +43,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   async function onGeneratePreview() {
     if (!file) return
     if (file.size > maxBytes) {
-      setState({ kind: "error", message: `File too large. Max ${tool.input.maxSizeMb} MB.` })
+      setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB limit.` })
       return
     }
 
@@ -124,7 +124,12 @@ export function ToolRunner({ tool }: { tool: Tool }) {
             </button>
           )}
 
-          {state.kind === "previewing" && <div style={{ marginTop: 10, color: "var(--muted)" }}>Analyzing file…</div>}
+          {state.kind === "previewing" && (
+            <div style={{ marginTop: 10, color: "var(--muted)" }}>
+              Analyzing file…
+            </div>
+          )}
+
           {state.kind === "error" && <div style={{ marginTop: 10 }}>{state.message}</div>}
         </section>
       )}
@@ -149,7 +154,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                 border: "1px solid var(--border)"
               }}
             >
-              Change file
+              Upload a new file
             </button>
           </div>
         </section>
@@ -158,21 +163,21 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       {state.kind === "processing" && (
         <section>
           <h2>Preparing</h2>
-          <div>Preparing your file…</div>
+          <div>Preparing file…</div>
         </section>
       )}
 
       {state.kind === "ready" && (
         <section>
           <h2>Download</h2>
-          <div>Download started. If nothing happens, click below.</div>
+          <div>Download started.</div>
 
           <button onClick={() => startDownload(state.runId)} style={{ marginTop: 12 }}>
             Download CSV
           </button>
 
           <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
-            You can download again without paying.
+            File can be downloaded again without payment.
           </div>
 
           <button
@@ -191,7 +196,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       )}
 
       <footer>
-        <small>Save this page if you need it again.</small>
+        <small>Bookmark this tool for later use.</small>
       </footer>
     </main>
   )
