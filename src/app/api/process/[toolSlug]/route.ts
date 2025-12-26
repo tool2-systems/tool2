@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "fs"
 import path from "path"
-import { loadRun } from "@/lib/store"
+import { loadRun, saveRun } from "@/lib/store"
 import { inputsDir } from "@/lib/paths"
 
 export async function POST(req: Request, ctx: { params: Promise<{ toolSlug: string }> }) {
@@ -37,6 +37,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ toolSlug: stri
 
   const out = header ? [header, ...outBody] : outBody
   await fs.writeFile(run.outputPath, out.join("\n"), "utf8")
+
+  run.status = "ready"
+  await saveRun(run)
 
   return NextResponse.json({ ok: true })
 }

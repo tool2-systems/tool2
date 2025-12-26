@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -14,31 +15,89 @@ type Tool = {
   input: { accepts: string[]; maxSizeMb: number }
 }
 
+type Preview = { totalRows: number; uniqueRows: number; duplicates: number }
+
 type State =
   | { kind: "idle" }
   | { kind: "previewing" }
-  | { kind: "preview_ready"; runId: string; totalRows: number; uniqueRows: number; duplicates: number }
+  | { kind: "preview_ready"; runId: string; preview: Preview }
+  | { kind: "paid"; runId: string; preview: Preview }
   | { kind: "processing"; runId: string }
   | { kind: "ready"; runId: string }
+  | { kind: "expired" }
   | { kind: "error"; message: string }
 
 export function ToolRunner({ tool }: { tool: Tool }) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement | null>(null)
+
   const [file, setFile] = useState<File | null>(null)
   const [state, setState] = useState<State>({ kind: "idle" })
 
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
 
+  function clearRunFromUrl() {
+    router.replace(`/${tool.slug}`)
+  }
+
+  function setRunInUrl(runId: string) {
+    router.replace(`/${tool.slug}?run=${encodeURIComponent(runId)}`)
+  }
+
   function resetToNewFile() {
     setFile(null)
     setState({ kind: "idle" })
     if (inputRef.current) inputRef.current.value = ""
+    clearRunFromUrl()
   }
 
   function startDownload(runId: string) {
     window.location.href = `/download/${runId}`
   }
+
+  useEffect(() => {
+    const runId = searchParams.get("run")
+    if (!runId) return
+
+    let cancelled = false
+
+    ;(async () => {
+      const res = await fetch(`/api/run/${encodeURIComponent(runId)}`, { method: "GET" })
+      if (!res.ok) return
+      const json = await res.json()
+
+      if (cancelled) return
+      if (json.toolSlug !== tool.slug) return
+
+      if (json.expired) {
+        setState({ kind: "expired" })
+        return
+      }
+
+      const preview = (json.preview ?? null) as Preview | null
+
+      if (json.status === "preview_ready" && preview) {
+        setState({ kind: "preview_ready", runId, preview })
+        return
+      }
+
+      if (json.status === "paid" && preview) {
+        setState({ kind: "paid", runId, preview })
+        return
+      }
+
+      if (json.status === "ready") {
+        setState({ kind: "ready", runId })
+        return
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, tool.slug])
 
   async function onGeneratePreview() {
     if (!file) return
@@ -59,43 +118,57 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     }
 
     const json = await res.json()
-    setState({
-      kind: "preview_ready",
-      runId: json.runId,
+    const runId = json.runId as string
+    const preview: Preview = {
       totalRows: json.preview.totalRows,
       uniqueRows: json.preview.uniqueRows,
       duplicates: json.preview.duplicates
+    }
+
+    setRunInUrl(runId)
+    setState({ kind: "preview_ready", runId, preview })
+  }
+
+  async function payThenProcess(runId: string) {
+    const unlock = await fetch("/api/unlock", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ runId })
     })
+    if (!unlock.ok) {
+      setState({ kind: "error", message: "Payment failed." })
+      return false
+    }
+    return true
+  }
+
+  async function processThenDownload(runId: string) {
+    const proc = await fetch(`/api/process/${tool.slug}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ runId })
+    })
+    if (!proc.ok) {
+      setState({ kind: "error", message: "Processing failed." })
+      return false
+    }
+    setState({ kind: "ready", runId })
+    startDownload(runId)
+    return true
   }
 
   async function onPayAndDownload() {
     if (state.kind !== "preview_ready") return
-
     setState({ kind: "processing", runId: state.runId })
+    const ok = await payThenProcess(state.runId)
+    if (!ok) return
+    await processThenDownload(state.runId)
+  }
 
-    const unlock = await fetch("/api/unlock", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ runId: state.runId })
-    })
-    if (!unlock.ok) {
-      setState({ kind: "error", message: "Payment failed." })
-      return
-    }
-
-    const proc = await fetch(`/api/process/${tool.slug}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ runId: state.runId })
-    })
-    if (!proc.ok) {
-      setState({ kind: "error", message: "Processing failed." })
-      return
-    }
-
-    const runId = state.runId
-    setState({ kind: "ready", runId })
-    startDownload(runId)
+  async function onPrepareAndDownload() {
+    if (state.kind !== "paid") return
+    setState({ kind: "processing", runId: state.runId })
+    await processThenDownload(state.runId)
   }
 
   return (
@@ -151,29 +224,37 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
                 {state.kind === "previewing" && <div className="text-sm text-muted-foreground">Analyzing file…</div>}
                 {state.kind === "error" && <div className="text-sm">{state.message}</div>}
+                {state.kind === "expired" && <div className="text-sm">Run expired.</div>}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {state.kind === "preview_ready" && (
+        {(state.kind === "preview_ready" || state.kind === "paid") && (
           <Card className="shadow-sm">
             <CardHeader className="space-y-1">
               <CardTitle className="text-base">Preview</CardTitle>
-              <CardDescription>Review the result before payment.</CardDescription>
+              <CardDescription>Review the result before download.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-1 text-sm">
-                <div>{state.duplicates} duplicate rows will be removed.</div>
-                <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
+                <div>{state.preview.duplicates} duplicate rows will be removed.</div>
+                <div>{state.preview.uniqueRows} rows will remain out of {state.preview.totalRows}.</div>
               </div>
 
               <Separator />
 
               <div className="space-y-3">
-                <Button onClick={onPayAndDownload} className="w-full sm:w-auto">
-                  Pay ${tool.priceUsd} and download CSV
-                </Button>
+                {state.kind === "preview_ready" ? (
+                  <Button onClick={onPayAndDownload} className="w-full sm:w-auto">
+                    Pay ${tool.priceUsd} and download CSV
+                  </Button>
+                ) : (
+                  <Button onClick={onPrepareAndDownload} className="w-full sm:w-auto">
+                    Prepare and download CSV
+                  </Button>
+                )}
+
                 <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
                   Upload a new file
                 </Button>
@@ -205,7 +286,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                 <Button onClick={() => startDownload(state.runId)} className="w-full sm:w-auto">
                   Download CSV
                 </Button>
-                <div className="text-xs text-muted-foreground">File can be downloaded again without payment.</div>
+                <div className="text-xs text-muted-foreground">Download remains available for a limited time.</div>
                 <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
                   Upload a new file
                 </Button>

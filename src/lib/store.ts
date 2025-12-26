@@ -14,3 +14,13 @@ export async function loadRun(id: string) {
   const raw = await fs.readFile(p, "utf8")
   return JSON.parse(raw) as Run
 }
+
+export async function runExists(id: string) {
+  try {
+    const p = path.join(runsDir(), `${id}.json`)
+    await fs.access(p)
+    return true
+  } catch {
+    return false
+  }
+}

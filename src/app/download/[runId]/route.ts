@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server"
+import { loadRun } from "@/lib/store"
 import { promises as fs } from "fs"
 import path from "path"
-import { loadRun } from "@/lib/store"
 
 export async function GET(_req: Request, ctx: { params: Promise<{ runId: string }> }) {
   const { runId } = await ctx.params
   const run = await loadRun(runId)
-  if (run.status !== "paid") return NextResponse.json({ error: "not paid" }, { status: 402 })
 
-  const buf = await fs.readFile(run.outputPath).catch(() => null)
-  if (!buf) return NextResponse.json({ error: "no output" }, { status: 404 })
+  const now = Date.now()
+  if (typeof run.expiresAt === "number" && now > run.expiresAt) {
+    return NextResponse.json({ error: "expired" }, { status: 410 })
+  }
 
+  if (run.status !== "ready") {
+    return NextResponse.json({ error: "not ready" }, { status: 409 })
+  }
+
+  const buf = await fs.readFile(run.outputPath)
   const filename = path.basename(run.outputPath)
 
   return new NextResponse(buf, {
