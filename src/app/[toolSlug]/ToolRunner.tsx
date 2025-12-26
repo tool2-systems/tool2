@@ -34,6 +34,13 @@ function formatExpiry(ts: number) {
   }).format(new Date(ts))
 }
 
+function formatAccept(accepts: string[]) {
+  if (accepts.includes("text/csv")) return "CSV"
+  if (accepts.includes("application/pdf")) return "PDF"
+  if (accepts.length === 1) return accepts[0]
+  return "File"
+}
+
 export function ToolRunner({ tool }: { tool: Tool }) {
   const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -42,13 +49,23 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   const [state, setState] = useState<State>({ kind: "idle" })
 
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
+  const acceptLabel = useMemo(() => formatAccept(tool.input.accepts), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
 
-  function resetToNewFile() {
+  function clearRunFromUrl() {
     const url = new URL(window.location.href)
     url.searchParams.delete("run")
     window.history.replaceState({}, "", url.toString())
+  }
 
+  function setRunInUrl(runId: string) {
+    const url = new URL(window.location.href)
+    url.searchParams.set("run", runId)
+    window.history.replaceState({}, "", url.toString())
+  }
+
+  function resetToNewFile() {
+    clearRunFromUrl()
     setFile(null)
     setState({ kind: "idle" })
     if (inputRef.current) inputRef.current.value = ""
@@ -84,11 +101,13 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
     if (json.status === "paid") {
       setState({ kind: "processing", runId: json.runId })
+
       const proc = await fetch(`/api/process/${tool.slug}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ runId: json.runId })
       })
+
       if (!proc.ok) {
         setState({ kind: "error", message: "Processing failed." })
         return
@@ -138,15 +157,16 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
     const res = await fetch(`/api/preview/${tool.slug}`, { method: "POST", body: form })
     if (!res.ok) {
+      if (res.status === 413) {
+        setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB limit.` })
+        return
+      }
       setState({ kind: "error", message: "Preview failed." })
       return
     }
 
     const json = await res.json()
-
-    const url = new URL(window.location.href)
-    url.searchParams.set("run", json.runId)
-    window.history.replaceState({}, "", url.toString())
+    setRunInUrl(json.runId)
 
     setState({
       kind: "preview_ready",
@@ -167,6 +187,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ runId: state.runId })
     })
+
     if (!unlock.ok) {
       setState({ kind: "error", message: "Payment failed." })
       return
@@ -177,6 +198,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ runId: state.runId })
     })
+
     if (!proc.ok) {
       setState({ kind: "error", message: "Processing failed." })
       return
@@ -190,6 +212,15 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     startDownload(state.runId)
   }
 
+  const view = (() => {
+    if (state.kind === "preview_ready") return { title: "Preview", desc: "Review the result before payment." }
+    if (state.kind === "processing") return { title: "Preparing", desc: "Processing the file for download." }
+    if (state.kind === "ready") return { title: "Download", desc: "Download starts automatically." }
+    return { title: "Upload", desc: "Select a file." }
+  })()
+
+  const showFilePicker = state.kind !== "ready"
+
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
       <header className="space-y-2">
@@ -197,99 +228,84 @@ export function ToolRunner({ tool }: { tool: Tool }) {
         <p className="text-sm leading-6 text-muted-foreground">{tool.oneLiner}</p>
       </header>
 
-      <div className="mt-8 space-y-6">
-        {state.kind !== "ready" && (
-          <Card className="shadow-sm">
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-base">Upload</CardTitle>
-              <CardDescription>Select a file to generate a preview.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <input
-                ref={inputRef}
-                type="file"
-                accept={acceptAttr}
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null
-                  setFile(f)
-                  setState({ kind: "idle" })
-                }}
-              />
+      <div className="mt-8">
+        <Card className="shadow-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-base">{view.title}</CardTitle>
+            <CardDescription>{view.desc}</CardDescription>
+          </CardHeader>
 
-              <div className="space-y-2">
-                <Label className="text-sm">File</Label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Button variant="secondary" type="button" onClick={() => inputRef.current?.click()}>
-                    Choose file
-                  </Button>
-                  <div className="min-w-0 text-sm text-foreground">
-                    {file ? <span className="block max-w-full truncate">{file.name}</span> : <span className="text-muted-foreground">No file selected.</span>}
+          <CardContent className="space-y-5">
+            {showFilePicker && (
+              <>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept={acceptAttr}
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null
+                    setFile(f)
+                    setState({ kind: "idle" })
+                    clearRunFromUrl()
+                  }}
+                />
+
+                <div className="space-y-2">
+                  <Label className="text-sm">File</Label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Button variant="secondary" type="button" onClick={() => inputRef.current?.click()}>
+                      Choose file
+                    </Button>
+                    <div className="min-w-0 text-sm text-foreground">
+                      {file ? <span className="block max-w-full truncate">{file.name}</span> : <span className="text-muted-foreground">No file selected.</span>}
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {acceptLabel} · up to {tool.input.maxSizeMb} MB
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  Accepted: {acceptAttr || "file"} · Max {tool.input.maxSizeMb} MB
-                </div>
-              </div>
 
+                <Separator />
+              </>
+            )}
+
+            {state.kind === "idle" && (
               <div className="space-y-2">
-                <Button onClick={onGeneratePreview} disabled={!file || state.kind === "previewing"} className="w-full sm:w-auto">
+                <Button onClick={onGeneratePreview} disabled={!file} className="w-full sm:w-auto">
                   Generate preview
                 </Button>
-
-                {state.kind === "previewing" && <div className="text-sm text-foreground">Analyzing file…</div>}
-                {state.kind === "expired" && <div className="text-sm text-foreground">Previous run expired.</div>}
                 {state.kind === "error" && <div className="text-sm text-foreground">{state.message}</div>}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
 
-        {state.kind === "preview_ready" && (
-          <Card className="shadow-sm">
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-base">Preview</CardTitle>
-              <CardDescription>Review the result before payment.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-1 text-sm text-foreground">
-                <div>{state.duplicates} duplicate rows will be removed.</div>
-                <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
+            {state.kind === "previewing" && <div className="text-sm text-foreground">Analyzing file…</div>}
+
+            {state.kind === "expired" && <div className="text-sm text-foreground">Previous run expired.</div>}
+
+            {state.kind === "error" && <div className="text-sm text-foreground">{state.message}</div>}
+
+            {state.kind === "preview_ready" && (
+              <div className="space-y-5">
+                <div className="space-y-1 text-sm text-foreground">
+                  <div>{state.duplicates} duplicate rows will be removed.</div>
+                  <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
+                </div>
+
+                <div className="space-y-3">
+                  <Button onClick={onPayAndDownload} className="w-full sm:w-auto">
+                    Pay ${tool.priceUsd} and download CSV
+                  </Button>
+                  <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
+                    Upload a new file
+                  </Button>
+                </div>
               </div>
+            )}
 
-              <Separator />
+            {state.kind === "processing" && <div className="text-sm text-foreground">Preparing file…</div>}
 
-              <div className="space-y-3">
-                <Button onClick={onPayAndDownload} className="w-full sm:w-auto">
-                  Pay ${tool.priceUsd} and download CSV
-                </Button>
-                <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
-                  Upload a new file
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {state.kind === "processing" && (
-          <Card className="shadow-sm">
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-base">Preparing</CardTitle>
-              <CardDescription>Processing the file for download.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm text-foreground">Preparing file…</div>
-            </CardContent>
-          </Card>
-        )}
-
-        {state.kind === "ready" && (
-          <Card className="shadow-sm">
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-base">Download</CardTitle>
-              <CardDescription>Your file is ready. Download starts automatically.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
+            {state.kind === "ready" && (
               <div className="space-y-3">
                 <Button onClick={() => startDownload(state.runId)} className="w-full sm:w-auto">
                   Download CSV
@@ -303,9 +319,9 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                   Upload a new file
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
       </div>
     </main>
   )
