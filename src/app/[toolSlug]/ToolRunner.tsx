@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Label } from "@/components/ui/label"
 
 type Tool = {
   slug: string
@@ -146,7 +145,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     if (!file) return
 
     if (file.size > maxBytes) {
-      setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB limit.` })
+      setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB.` })
       return
     }
 
@@ -158,7 +157,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     const res = await fetch(`/api/preview/${tool.slug}`, { method: "POST", body: form })
     if (!res.ok) {
       if (res.status === 413) {
-        setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB limit.` })
+        setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB.` })
         return
       }
       setState({ kind: "error", message: "Preview failed." })
@@ -212,14 +211,38 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     startDownload(state.runId)
   }
 
-  const view = (() => {
-    if (state.kind === "preview_ready") return { title: "Preview", desc: "Review the result before payment." }
-    if (state.kind === "processing") return { title: "Preparing", desc: "Processing the file for download." }
-    if (state.kind === "ready") return { title: "Download", desc: "Download starts automatically." }
-    return { title: "Upload", desc: "Select a file." }
-  })()
+  function headerTitle() {
+    if (state.kind === "preview_ready") return "Preview"
+    if (state.kind === "processing") return "Preparing"
+    if (state.kind === "ready") return "Download"
+    return "Upload"
+  }
 
-  const showFilePicker = state.kind !== "ready"
+  function headerDescription() {
+    if (state.kind === "preview_ready") return "Review the result before payment."
+    if (state.kind === "processing") return "Processing the file for download."
+    if (state.kind === "ready") return "Download starts automatically."
+    return null
+  }
+
+  function primaryActionLabel() {
+    if (state.kind === "preview_ready") return `Pay $${tool.priceUsd} and download`
+    return "Generate preview"
+  }
+
+  function onPrimary() {
+    if (state.kind === "preview_ready") return onPayAndDownload
+    return onGeneratePreview
+  }
+
+  const primaryDisabled =
+    (state.kind === "idle" && !file) ||
+    state.kind === "previewing" ||
+    state.kind === "processing" ||
+    state.kind === "ready" ||
+    state.kind === "expired"
+
+  const chooseLabel = acceptLabel === "CSV" ? "Choose CSV" : "Choose file"
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
@@ -231,12 +254,12 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       <div className="mt-8">
         <Card className="shadow-sm">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-base">{view.title}</CardTitle>
-            <CardDescription>{view.desc}</CardDescription>
+            <CardTitle className="text-base">{headerTitle()}</CardTitle>
+            {headerDescription() ? <CardDescription>{headerDescription()}</CardDescription> : null}
           </CardHeader>
 
           <CardContent className="space-y-5">
-            {showFilePicker && (
+            {state.kind !== "ready" && (
               <>
                 <input
                   ref={inputRef}
@@ -247,79 +270,67 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                     const f = e.target.files?.[0] ?? null
                     setFile(f)
                     setState({ kind: "idle" })
-                    clearRunFromUrl()
                   }}
                 />
 
-                <div className="space-y-2">
-                  <Label className="text-sm">File</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Button variant="secondary" type="button" onClick={() => inputRef.current?.click()}>
-                      Choose file
+                      {chooseLabel}
                     </Button>
                     <div className="min-w-0 text-sm text-foreground">
-                      {file ? <span className="block max-w-full truncate">{file.name}</span> : <span className="text-muted-foreground">No file selected.</span>}
+                      {file ? (
+                        <span className="block max-w-full truncate">{file.name}</span>
+                      ) : (
+                        <span className="text-muted-foreground">No file selected.</span>
+                      )}
                     </div>
                   </div>
+
                   <div className="text-xs text-muted-foreground">
-                    {acceptLabel} · up to {tool.input.maxSizeMb} MB
+                    {acceptLabel} (max {tool.input.maxSizeMb} MB)
                   </div>
                 </div>
-
-                <Separator />
               </>
             )}
 
-            {state.kind === "idle" && (
-              <div className="space-y-2">
-                <Button onClick={onGeneratePreview} disabled={!file} className="w-full sm:w-auto">
-                  Generate preview
-                </Button>
-                {state.kind === "error" && <div className="text-sm text-foreground">{state.message}</div>}
-              </div>
-            )}
-
-            {state.kind === "previewing" && <div className="text-sm text-foreground">Analyzing file…</div>}
-
-            {state.kind === "expired" && <div className="text-sm text-foreground">Previous run expired.</div>}
-
-            {state.kind === "error" && <div className="text-sm text-foreground">{state.message}</div>}
-
             {state.kind === "preview_ready" && (
-              <div className="space-y-5">
-                <div className="space-y-1 text-sm text-foreground">
-                  <div>{state.duplicates} duplicate rows will be removed.</div>
-                  <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
-                </div>
-
-                <div className="space-y-3">
-                  <Button onClick={onPayAndDownload} className="w-full sm:w-auto">
-                    Pay ${tool.priceUsd} and download CSV
-                  </Button>
-                  <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
-                    Upload a new file
-                  </Button>
-                </div>
+              <div className="space-y-1 text-sm text-foreground">
+                <div>{state.duplicates} duplicate rows will be removed.</div>
+                <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
               </div>
             )}
-
-            {state.kind === "processing" && <div className="text-sm text-foreground">Preparing file…</div>}
 
             {state.kind === "ready" && (
-              <div className="space-y-3">
+              <div className="space-y-1 text-sm text-foreground">
+                {typeof state.expiresAt === "number" ? (
+                  <div className="text-muted-foreground">Available until {formatExpiry(state.expiresAt)}.</div>
+                ) : null}
+              </div>
+            )}
+
+            <Separator />
+
+            <div className="space-y-3">
+              {state.kind === "ready" ? (
                 <Button onClick={() => startDownload(state.runId)} className="w-full sm:w-auto">
                   Download CSV
                 </Button>
-
-                {typeof state.expiresAt === "number" && (
-                  <div className="text-xs text-muted-foreground">Available until {formatExpiry(state.expiresAt)}.</div>
-                )}
-
-                <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
-                  Upload a new file
+              ) : (
+                <Button onClick={onPrimary()} disabled={primaryDisabled} className="w-full sm:w-auto">
+                  {primaryActionLabel()}
                 </Button>
-              </div>
-            )}
+              )}
+
+              {state.kind === "previewing" ? <div className="text-sm text-foreground">Analyzing file…</div> : null}
+              {state.kind === "processing" ? <div className="text-sm text-foreground">Preparing file…</div> : null}
+              {state.kind === "expired" ? <div className="text-sm text-foreground">Previous run expired.</div> : null}
+              {state.kind === "error" ? <div className="text-sm text-foreground">{state.message}</div> : null}
+
+              <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
+                Upload a new file
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
