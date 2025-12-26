@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -15,20 +15,26 @@ type Tool = {
   input: { accepts: string[]; maxSizeMb: number }
 }
 
-type Preview = { totalRows: number; uniqueRows: number; duplicates: number }
-
 type State =
   | { kind: "idle" }
   | { kind: "previewing" }
-  | { kind: "preview_ready"; runId: string; preview: Preview }
-  | { kind: "paid"; runId: string; preview: Preview }
+  | { kind: "preview_ready"; runId: string; totalRows: number; uniqueRows: number; duplicates: number }
   | { kind: "processing"; runId: string }
-  | { kind: "ready"; runId: string }
+  | { kind: "ready"; runId: string; expiresAt: number | null }
   | { kind: "expired" }
   | { kind: "error"; message: string }
 
+function formatExpiry(ts: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(ts))
+}
+
 export function ToolRunner({ tool }: { tool: Tool }) {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -38,69 +44,88 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
 
-  function clearRunFromUrl() {
-    router.replace(`/${tool.slug}`)
-  }
-
-  function setRunInUrl(runId: string) {
-    router.replace(`/${tool.slug}?run=${encodeURIComponent(runId)}`)
-  }
-
   function resetToNewFile() {
+    const url = new URL(window.location.href)
+    url.searchParams.delete("run")
+    window.history.replaceState({}, "", url.toString())
+
     setFile(null)
     setState({ kind: "idle" })
     if (inputRef.current) inputRef.current.value = ""
-    clearRunFromUrl()
   }
 
   function startDownload(runId: string) {
     window.location.href = `/download/${runId}`
   }
 
+  async function resumeFromRun(runId: string) {
+    const res = await fetch(`/api/run/${runId}`)
+    if (!res.ok) {
+      setState({ kind: "idle" })
+      return
+    }
+
+    const json = await res.json()
+
+    if (json.toolSlug !== tool.slug) {
+      setState({ kind: "idle" })
+      return
+    }
+
+    if (json.expired) {
+      setState({ kind: "expired" })
+      return
+    }
+
+    if (json.status === "ready") {
+      setState({ kind: "ready", runId: json.runId, expiresAt: json.expiresAt })
+      return
+    }
+
+    if (json.status === "paid") {
+      setState({ kind: "processing", runId: json.runId })
+      const proc = await fetch(`/api/process/${tool.slug}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ runId: json.runId })
+      })
+      if (!proc.ok) {
+        setState({ kind: "error", message: "Processing failed." })
+        return
+      }
+
+      const re = await fetch(`/api/run/${json.runId}`)
+      const j2 = await re.json().catch(() => null)
+      const expiresAt = j2?.expiresAt ?? null
+
+      setState({ kind: "ready", runId: json.runId, expiresAt })
+      startDownload(json.runId)
+      return
+    }
+
+    if (json.status === "preview_ready" && json.preview) {
+      setState({
+        kind: "preview_ready",
+        runId: json.runId,
+        totalRows: json.preview.totalRows,
+        uniqueRows: json.preview.uniqueRows,
+        duplicates: json.preview.duplicates
+      })
+      return
+    }
+
+    setState({ kind: "idle" })
+  }
+
   useEffect(() => {
     const runId = searchParams.get("run")
     if (!runId) return
-
-    let cancelled = false
-
-    ;(async () => {
-      const res = await fetch(`/api/run/${encodeURIComponent(runId)}`, { method: "GET" })
-      if (!res.ok) return
-      const json = await res.json()
-
-      if (cancelled) return
-      if (json.toolSlug !== tool.slug) return
-
-      if (json.expired) {
-        setState({ kind: "expired" })
-        return
-      }
-
-      const preview = (json.preview ?? null) as Preview | null
-
-      if (json.status === "preview_ready" && preview) {
-        setState({ kind: "preview_ready", runId, preview })
-        return
-      }
-
-      if (json.status === "paid" && preview) {
-        setState({ kind: "paid", runId, preview })
-        return
-      }
-
-      if (json.status === "ready") {
-        setState({ kind: "ready", runId })
-        return
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
+    resumeFromRun(runId)
   }, [searchParams, tool.slug])
 
   async function onGeneratePreview() {
     if (!file) return
+
     if (file.size > maxBytes) {
       setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB limit.` })
       return
@@ -118,57 +143,51 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     }
 
     const json = await res.json()
-    const runId = json.runId as string
-    const preview: Preview = {
+
+    const url = new URL(window.location.href)
+    url.searchParams.set("run", json.runId)
+    window.history.replaceState({}, "", url.toString())
+
+    setState({
+      kind: "preview_ready",
+      runId: json.runId,
       totalRows: json.preview.totalRows,
       uniqueRows: json.preview.uniqueRows,
       duplicates: json.preview.duplicates
-    }
-
-    setRunInUrl(runId)
-    setState({ kind: "preview_ready", runId, preview })
-  }
-
-  async function payThenProcess(runId: string) {
-    const unlock = await fetch("/api/unlock", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ runId })
     })
-    if (!unlock.ok) {
-      setState({ kind: "error", message: "Payment failed." })
-      return false
-    }
-    return true
-  }
-
-  async function processThenDownload(runId: string) {
-    const proc = await fetch(`/api/process/${tool.slug}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ runId })
-    })
-    if (!proc.ok) {
-      setState({ kind: "error", message: "Processing failed." })
-      return false
-    }
-    setState({ kind: "ready", runId })
-    startDownload(runId)
-    return true
   }
 
   async function onPayAndDownload() {
     if (state.kind !== "preview_ready") return
-    setState({ kind: "processing", runId: state.runId })
-    const ok = await payThenProcess(state.runId)
-    if (!ok) return
-    await processThenDownload(state.runId)
-  }
 
-  async function onPrepareAndDownload() {
-    if (state.kind !== "paid") return
     setState({ kind: "processing", runId: state.runId })
-    await processThenDownload(state.runId)
+
+    const unlock = await fetch("/api/unlock", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ runId: state.runId })
+    })
+    if (!unlock.ok) {
+      setState({ kind: "error", message: "Payment failed." })
+      return
+    }
+
+    const proc = await fetch(`/api/process/${tool.slug}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ runId: state.runId })
+    })
+    if (!proc.ok) {
+      setState({ kind: "error", message: "Processing failed." })
+      return
+    }
+
+    const r = await fetch(`/api/run/${state.runId}`)
+    const j = await r.json().catch(() => null)
+    const expiresAt = j?.expiresAt ?? null
+
+    setState({ kind: "ready", runId: state.runId, expiresAt })
+    startDownload(state.runId)
   }
 
   return (
@@ -205,11 +224,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                     Choose file
                   </Button>
                   <div className="min-w-0 text-sm text-foreground">
-                    {file ? (
-                      <span className="block max-w-full truncate">{file.name}</span>
-                    ) : (
-                      <span className="text-muted-foreground">No file selected.</span>
-                    )}
+                    {file ? <span className="block max-w-full truncate">{file.name}</span> : <span className="text-muted-foreground">No file selected.</span>}
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -222,39 +237,32 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                   Generate preview
                 </Button>
 
-                {state.kind === "previewing" && <div className="text-sm text-muted-foreground">Analyzing file…</div>}
-                {state.kind === "error" && <div className="text-sm">{state.message}</div>}
-                {state.kind === "expired" && <div className="text-sm">Run expired.</div>}
+                {state.kind === "previewing" && <div className="text-sm text-foreground">Analyzing file…</div>}
+                {state.kind === "expired" && <div className="text-sm text-foreground">Previous run expired.</div>}
+                {state.kind === "error" && <div className="text-sm text-foreground">{state.message}</div>}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {(state.kind === "preview_ready" || state.kind === "paid") && (
+        {state.kind === "preview_ready" && (
           <Card className="shadow-sm">
             <CardHeader className="space-y-1">
               <CardTitle className="text-base">Preview</CardTitle>
-              <CardDescription>Review the result before download.</CardDescription>
+              <CardDescription>Review the result before payment.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="space-y-1 text-sm">
-                <div>{state.preview.duplicates} duplicate rows will be removed.</div>
-                <div>{state.preview.uniqueRows} rows will remain out of {state.preview.totalRows}.</div>
+              <div className="space-y-1 text-sm text-foreground">
+                <div>{state.duplicates} duplicate rows will be removed.</div>
+                <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
               </div>
 
               <Separator />
 
               <div className="space-y-3">
-                {state.kind === "preview_ready" ? (
-                  <Button onClick={onPayAndDownload} className="w-full sm:w-auto">
-                    Pay ${tool.priceUsd} and download CSV
-                  </Button>
-                ) : (
-                  <Button onClick={onPrepareAndDownload} className="w-full sm:w-auto">
-                    Prepare and download CSV
-                  </Button>
-                )}
-
+                <Button onClick={onPayAndDownload} className="w-full sm:w-auto">
+                  Pay ${tool.priceUsd} and download CSV
+                </Button>
                 <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
                   Upload a new file
                 </Button>
@@ -270,7 +278,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
               <CardDescription>Processing the file for download.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-sm text-muted-foreground">Preparing file…</div>
+              <div className="text-sm text-foreground">Preparing file…</div>
             </CardContent>
           </Card>
         )}
@@ -279,14 +287,18 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           <Card className="shadow-sm">
             <CardHeader className="space-y-1">
               <CardTitle className="text-base">Download</CardTitle>
-              <CardDescription>Download should start automatically.</CardDescription>
+              <CardDescription>Your file is ready. Download starts automatically.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-3">
                 <Button onClick={() => startDownload(state.runId)} className="w-full sm:w-auto">
                   Download CSV
                 </Button>
-                <div className="text-xs text-muted-foreground">Download remains available for a limited time.</div>
+
+                {typeof state.expiresAt === "number" && (
+                  <div className="text-xs text-muted-foreground">Available until {formatExpiry(state.expiresAt)}.</div>
+                )}
+
                 <Button variant="secondary" onClick={resetToNewFile} className="w-full sm:w-auto">
                   Upload a new file
                 </Button>

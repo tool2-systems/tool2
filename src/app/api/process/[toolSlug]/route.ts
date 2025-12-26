@@ -13,7 +13,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ toolSlug: stri
 
   const run = await loadRun(runId)
   if (run.toolSlug !== toolSlug) return NextResponse.json({ error: "mismatch" }, { status: 400 })
-  if (run.status !== "paid") return NextResponse.json({ error: "not paid" }, { status: 402 })
+
+  const now = Date.now()
+  const expired = typeof run.expiresAt === "number" ? now > run.expiresAt : false
+  if (expired) return NextResponse.json({ error: "expired" }, { status: 410 })
+
+  if (run.status !== "paid" && run.status !== "ready") return NextResponse.json({ error: "not paid" }, { status: 402 })
   if (toolSlug !== "remove-duplicate-csv") return NextResponse.json({ error: "no handler" }, { status: 400 })
 
   const inputPath = path.join(inputsDir(), `${runId}.csv`)
