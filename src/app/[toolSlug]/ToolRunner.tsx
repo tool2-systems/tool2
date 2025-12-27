@@ -226,13 +226,9 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     startDownload(state.runId)
   }
 
-  const showFilePanel =
-    state.kind !== "processing" &&
-    state.kind !== "ready" &&
-    state.kind !== "expired" &&
-    state.kind !== "error"
-
-  return (
+    const showFilePanel = state.kind !== "processing" && state.kind !== "ready" && state.kind !== "expired" && state.kind !== "error"
+  const showActions = (state.kind === "idle" && hasFile) || state.kind === "preview_ready" || state.kind === "ready"
+return (
     <main className="mx-auto max-w-xl px-4 py-14">
       <header className="mb-10 space-y-2 text-center">
         <h1 className="text-3xl font-semibold">{tool.title}</h1>
@@ -324,7 +320,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
             </div>
           ) : null}
 
-          {state.kind !== "expired" && state.kind !== "error" ? (
+          {state.kind !== "expired" && state.kind !== "error" && showActions ? (
             <>
               <Separator />
 
