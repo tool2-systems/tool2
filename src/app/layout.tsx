@@ -11,15 +11,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen bg-background text-foreground">
         {children}
-        <div className="mx-auto w-full max-w-2xl px-4 pb-8">
-          <div className="border-t pt-3 text-xs text-muted-foreground">
-            <Link href="/terms">Terms</Link>
-            <span className="px-2">•</span>
-            <Link href="/privacy">Privacy</Link>
-            <span className="px-2">•</span>
-            <Link href="/support">Support</Link>
-          </div>
-        </div>
+
+        <footer className="mx-auto w-full max-w-2xl px-4 pb-10">
+          <nav
+            aria-label="Legal"
+            className="flex justify-center gap-8 text-sm text-muted-foreground"
+          >
+            <Link href="/terms" className="transition-colors hover:text-foreground">
+              Terms
+            </Link>
+            <Link href="/privacy" className="transition-colors hover:text-foreground">
+              Privacy
+            </Link>
+            <Link href="/support" className="transition-colors hover:text-foreground">
+              Support
+            </Link>
+          </nav>
+        </footer>
       </body>
     </html>
   )
