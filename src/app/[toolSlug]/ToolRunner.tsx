@@ -33,13 +33,6 @@ function formatExpiry(ts: number) {
   }).format(new Date(ts))
 }
 
-function formatAccept(accepts: string[]) {
-  if (accepts.includes("text/csv")) return "CSV"
-  if (accepts.includes("application/pdf")) return "PDF"
-  if (accepts.length === 1) return accepts[0]
-  return "File"
-}
-
 export function ToolRunner({ tool }: { tool: Tool }) {
   const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -48,12 +41,10 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   const [state, setState] = useState<State>({ kind: "idle" })
 
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
-  const acceptLabel = useMemo(() => formatAccept(tool.input.accepts), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
 
   const hasFile = !!file
-  const chooseLabel = acceptLabel === "CSV" ? "Choose CSV" : "Choose file"
-  const constraintsLabel = `${acceptLabel}, max ${tool.input.maxSizeMb} MB`
+  const constraintsLabel = `Max ${tool.input.maxSizeMb} MB`
 
   function clearRunFromUrl() {
     const url = new URL(window.location.href)
@@ -96,7 +87,11 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       return
     }
 
-    const json = await res.json()
+    const json = await res.json().catch(() => null)
+    if (!json) {
+      setState({ kind: "idle" })
+      return
+    }
 
     if (json.toolSlug !== tool.slug) {
       setState({ kind: "idle" })
@@ -179,7 +174,12 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       return
     }
 
-    const json = await res.json()
+    const json = await res.json().catch(() => null)
+    if (!json?.runId) {
+      setState({ kind: "error", message: "Preview failed." })
+      return
+    }
+
     setRunInUrl(json.runId)
 
     setState({
@@ -226,13 +226,13 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     startDownload(state.runId)
   }
 
-    const showFilePanel = state.kind !== "processing" && state.kind !== "ready" && state.kind !== "expired" && state.kind !== "error"
+  const showFilePanel = state.kind !== "processing" && state.kind !== "ready" && state.kind !== "expired" && state.kind !== "error"
   const showActions = (state.kind === "idle" && hasFile) || state.kind === "preview_ready" || state.kind === "ready"
-return (
+
+  return (
     <main className="mx-auto max-w-xl px-4 py-14">
       <header className="mb-10 space-y-2 text-center">
         <h1 className="text-3xl font-semibold">{tool.title}</h1>
-        <p className="text-base text-muted-foreground">{tool.oneLiner}</p>
       </header>
 
       <Card className="shadow-sm">
@@ -253,26 +253,26 @@ return (
             <div className="space-y-2">
               {!hasFile ? (
                 <div
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") pickFile()
+                  }}
                   onClick={pickFile}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault()
-                    const f = e.dataTransfer.files?.[0]
-                    if (f) {
-                      setFile(f)
-                      setState({ kind: "idle" })
-                      if (inputRef.current) inputRef.current.value = ""
-                    }
+                    const f = e.dataTransfer.files?.[0] ?? null
+                    if (!f) return
+                    setFile(f)
+                    setState({ kind: "idle" })
+                    if (inputRef.current) inputRef.current.value = ""
                   }}
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-10 text-center transition hover:bg-muted"
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-10 text-center transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <div className="text-sm font-medium">{chooseLabel}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Drag & drop or click to upload
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {constraintsLabel}
-                  </div>
+                  <div className="text-sm font-medium">Upload file</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Drag and drop, or click to browse</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{constraintsLabel}</div>
                 </div>
               ) : (
                 <div className="text-sm">
@@ -285,7 +285,9 @@ return (
           {state.kind === "preview_ready" ? (
             <div className="space-y-1 text-sm">
               <div>{state.duplicates} rows will be removed.</div>
-              <div>{state.uniqueRows} rows will remain out of {state.totalRows}.</div>
+              <div>
+                {state.uniqueRows} rows will remain out of {state.totalRows}.
+              </div>
             </div>
           ) : null}
 
@@ -295,9 +297,7 @@ return (
           {state.kind === "ready" ? (
             <div className="space-y-2">
               {typeof state.expiresAt === "number" ? (
-                <div className="text-sm text-muted-foreground">
-                  Available until {formatExpiry(state.expiresAt)}
-                </div>
+                <div className="text-sm text-muted-foreground">Available until {formatExpiry(state.expiresAt)}</div>
               ) : null}
             </div>
           ) : null}
