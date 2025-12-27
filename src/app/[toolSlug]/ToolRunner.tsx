@@ -80,8 +80,9 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
   function changeFile() {
     clearRunFromUrl()
+    setFile(null)
     setState({ kind: "idle" })
-    pickFile()
+    if (inputRef.current) inputRef.current.value = ""
   }
 
   function startDownload(runId: string) {
@@ -225,7 +226,11 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     startDownload(state.runId)
   }
 
-  const showFilePanel = state.kind !== "processing" && state.kind !== "ready" && state.kind !== "expired" && state.kind !== "error"
+  const showFilePanel =
+    state.kind !== "processing" &&
+    state.kind !== "ready" &&
+    state.kind !== "expired" &&
+    state.kind !== "error"
 
   return (
     <main className="mx-auto max-w-xl px-4 py-14">
@@ -251,16 +256,32 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           {showFilePanel ? (
             <div className="space-y-2">
               {!hasFile ? (
-                <Button size="lg" className="w-full py-6 text-base sm:text-lg" type="button" onClick={pickFile}>
-                  {chooseLabel}
-                </Button>
-              ) : (
-                <>
-                  <div className="text-sm">
-                    <span className="block truncate">{file.name}</span>
+                <div
+                  onClick={pickFile}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const f = e.dataTransfer.files?.[0]
+                    if (f) {
+                      setFile(f)
+                      setState({ kind: "idle" })
+                      if (inputRef.current) inputRef.current.value = ""
+                    }
+                  }}
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-10 text-center transition hover:bg-muted"
+                >
+                  <div className="text-sm font-medium">{chooseLabel}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Drag & drop or click to upload
                   </div>
-                  <div className="text-xs text-muted-foreground">{constraintsLabel}</div>
-                </>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {constraintsLabel}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm">
+                  <span className="block truncate">{file.name}</span>
+                </div>
               )}
             </div>
           ) : null}
@@ -278,7 +299,9 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           {state.kind === "ready" ? (
             <div className="space-y-2">
               {typeof state.expiresAt === "number" ? (
-                <div className="text-sm text-muted-foreground">Available until {formatExpiry(state.expiresAt)}</div>
+                <div className="text-sm text-muted-foreground">
+                  Available until {formatExpiry(state.expiresAt)}
+                </div>
               ) : null}
             </div>
           ) : null}
