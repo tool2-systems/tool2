@@ -231,8 +231,8 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
   return (
     <main className="mx-auto max-w-xl px-4 py-14">
-      <header className="mb-10 space-y-2 text-center">
-        <h1 className="text-3xl font-semibold">{tool.title}</h1>
+      <header className="mb-10 text-center">
+        <h1 className="text-3xl font-semibold tracking-tight leading-tight sm:text-4xl">{tool.title}</h1>
       </header>
 
       <Card className="shadow-sm">
@@ -268,14 +268,14 @@ export function ToolRunner({ tool }: { tool: Tool }) {
                     setState({ kind: "idle" })
                     if (inputRef.current) inputRef.current.value = ""
                   }}
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-10 text-center transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 text-center transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:py-14"
                 >
-                  <div className="text-sm font-medium">Upload file</div>
-                  <div className="mt-1 text-xs text-muted-foreground">Drag and drop, or click to browse</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{constraintsLabel}</div>
+                  <div className="text-lg font-semibold sm:text-xl">Upload file</div>
+                  <div className="mt-2 text-sm text-muted-foreground sm:text-base">Drag and drop, or click to browse</div>
+                  <div className="mt-1 text-xs text-muted-foreground sm:text-sm">{constraintsLabel}</div>
                 </div>
               ) : (
-                <div className="text-sm">
+                <div className="text-sm font-medium sm:text-base">
                   <span className="block truncate">{file.name}</span>
                 </div>
               )}
@@ -283,7 +283,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           ) : null}
 
           {state.kind === "preview_ready" ? (
-            <div className="space-y-1 text-sm">
+            <div className="space-y-1 text-sm sm:text-base">
               <div>{state.duplicates} rows will be removed.</div>
               <div>
                 {state.uniqueRows} rows will remain out of {state.totalRows}.
@@ -292,12 +292,12 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           ) : null}
 
           {state.kind === "processing" ? <div className="text-base sm:text-lg">Preparing file…</div> : null}
-          {state.kind === "previewing" ? <div className="text-sm text-muted-foreground">Analyzing…</div> : null}
+          {state.kind === "previewing" ? <div className="text-sm text-muted-foreground sm:text-base">Analyzing…</div> : null}
 
           {state.kind === "ready" ? (
             <div className="space-y-2">
               {typeof state.expiresAt === "number" ? (
-                <div className="text-sm text-muted-foreground">Available until {formatExpiry(state.expiresAt)}</div>
+                <div className="text-sm text-muted-foreground sm:text-base">Available until {formatExpiry(state.expiresAt)}</div>
               ) : null}
             </div>
           ) : null}
@@ -305,7 +305,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
           {state.kind === "expired" ? (
             <div className="space-y-3">
               <div className="text-base sm:text-lg">This run has expired.</div>
-              <Button size="lg" className="w-full py-6 text-base sm:text-lg" onClick={resetAll}>
+              <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={resetAll}>
                 Start over
               </Button>
             </div>
@@ -313,8 +313,8 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
           {state.kind === "error" ? (
             <div className="space-y-3">
-              <div className="text-sm text-foreground">{state.message}</div>
-              <Button size="lg" className="w-full py-6 text-base sm:text-lg" onClick={resetAll}>
+              <div className="text-sm text-foreground sm:text-base">{state.message}</div>
+              <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={resetAll}>
                 Start over
               </Button>
             </div>
@@ -326,10 +326,10 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
               {state.kind === "idle" && hasFile ? (
                 <div className="space-y-3">
-                  <Button size="lg" className="w-full py-6 text-base sm:text-lg" onClick={onGeneratePreview}>
+                  <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={onGeneratePreview}>
                     Generate preview
                   </Button>
-                  <Button variant="secondary" className="w-full py-6" onClick={changeFile}>
+                  <Button variant="secondary" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={changeFile}>
                     Change file
                   </Button>
                 </div>
@@ -337,10 +337,10 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
               {state.kind === "preview_ready" ? (
                 <div className="space-y-3">
-                  <Button size="lg" className="w-full py-6 text-base sm:text-lg" onClick={onPayAndDownload}>
+                  <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={onPayAndDownload}>
                     Pay ${tool.priceUsd} and download
                   </Button>
-                  <Button variant="secondary" className="w-full py-6" onClick={changeFile}>
+                  <Button variant="secondary" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={changeFile}>
                     Change file
                   </Button>
                 </div>
@@ -348,10 +348,10 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
               {state.kind === "ready" ? (
                 <div className="space-y-3">
-                  <Button size="lg" className="w-full py-6 text-base sm:text-lg" onClick={() => startDownload(state.runId)}>
+                  <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={() => startDownload(state.runId)}>
                     Download CSV
                   </Button>
-                  <Button variant="secondary" className="w-full py-6" onClick={resetAll}>
+                  <Button variant="secondary" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={resetAll}>
                     Run again
                   </Button>
                 </div>
