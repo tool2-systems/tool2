@@ -1,7 +1,7 @@
 import Link from "next/link"
-import { tools } from "@/tools"
-
+import { listTools } from "@/tools"
 export default function Page() {
+  const tools = listTools()
   return (
     <main>
       <h1>Tool2</h1>
