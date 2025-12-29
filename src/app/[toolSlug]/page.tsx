@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import { getTool } from "@/tools"
-import { ToolRunner } from "./ToolRunner"
+import { ToolRunner } from "@/components/tool-runner/ToolRunner"
 
 type Props = { params: Promise<{ toolSlug: string }> }
 
