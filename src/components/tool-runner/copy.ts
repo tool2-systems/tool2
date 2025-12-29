@@ -10,5 +10,8 @@ export const copy = {
   runAgain: "Run again",
   previewFailed: "Preview failed.",
   processingFailed: "Processing failed.",
-  paymentFailed: "Payment failed."
+  paymentFailed: "Payment failed.",
+  previewRemoved: (n: number) => `${n} rows will be removed.`,
+  previewRemain: (unique: number, total: number) => `${unique} rows will remain out of ${total}.`,
+  availableUntil: (s: string) => `Available until ${s}`
 }

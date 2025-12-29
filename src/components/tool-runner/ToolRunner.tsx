@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { copy } from "./copy"
+import { ui } from "./ui"
 
 type Tool = {
   slug: string
@@ -33,6 +35,152 @@ function formatExpiry(ts: number) {
   }).format(new Date(ts))
 }
 
+export function ToolRunnerView(props: {
+  tool: Tool
+  fileName: string | null
+  constraintsLabel: string
+  state: State
+  showFilePanel: boolean
+  showActions: boolean
+  pickFile: () => void
+  changeFile: () => void
+  resetAll: () => void
+  onGeneratePreview: () => void
+  onPayAndDownload: () => void
+  startDownload: (runId: string) => void
+  onDropFile: (f: File) => void
+}) {
+  const {
+    tool,
+    fileName,
+    constraintsLabel,
+    state,
+    showFilePanel,
+    showActions,
+    pickFile,
+    changeFile,
+    resetAll,
+    onGeneratePreview,
+    onPayAndDownload,
+    startDownload,
+    onDropFile
+  } = props
+
+  const hasFile = !!fileName
+
+  return (
+    <Card className={ui.card}>
+      <CardContent className={ui.cardContent}>
+        {showFilePanel ? (
+          <div className="space-y-2">
+            {!hasFile ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") pickFile()
+                }}
+                onClick={pickFile}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const f = e.dataTransfer.files?.[0] ?? null
+                  if (!f) return
+                  onDropFile(f)
+                }}
+                className={ui.dropzone}
+              >
+                <div className={ui.dropTitle}>{copy.uploadTitle}</div>
+                <div className={ui.dropHint}>{copy.uploadHint}</div>
+                <div className={ui.dropMeta}>{constraintsLabel}</div>
+              </div>
+            ) : (
+              <div className={ui.fileName}>
+                <span className="block truncate">{fileName}</span>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {state.kind === "preview_ready" ? (
+          <div className={ui.previewText}>
+            <div>{copy.previewRemoved(state.duplicates)}</div>
+            <div>{copy.previewRemain(state.uniqueRows, state.totalRows)}</div>
+          </div>
+        ) : null}
+
+        {state.kind === "processing" ? <div className={ui.status}>{copy.preparing}</div> : null}
+        {state.kind === "previewing" ? <div className={ui.subtle}>{copy.analyzing}</div> : null}
+
+        {state.kind === "ready" ? (
+          <div className="space-y-2">
+            {typeof state.expiresAt === "number" ? (
+              <div className={ui.subtle}>{copy.availableUntil(formatExpiry(state.expiresAt))}</div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {state.kind === "expired" ? (
+          <div className="space-y-3">
+            <div className={ui.status}>This run has expired.</div>
+            <Button size="lg" className={ui.primaryBtn} onClick={resetAll}>
+              {copy.startOver}
+            </Button>
+          </div>
+        ) : null}
+
+        {state.kind === "error" ? (
+          <div className="space-y-3">
+            <div className="text-sm text-foreground sm:text-base">{state.message}</div>
+            <Button size="lg" className={ui.primaryBtn} onClick={resetAll}>
+              {copy.startOver}
+            </Button>
+          </div>
+        ) : null}
+
+        {state.kind !== "expired" && state.kind !== "error" && showActions ? (
+          <>
+            <Separator />
+
+            {state.kind === "idle" && hasFile ? (
+              <div className={ui.actions}>
+                <Button size="lg" className={ui.primaryBtn} onClick={onGeneratePreview}>
+                  {copy.generatePreview}
+                </Button>
+                <Button variant="secondary" className={ui.secondaryBtn} onClick={changeFile}>
+                  {copy.changeFile}
+                </Button>
+              </div>
+            ) : null}
+
+            {state.kind === "preview_ready" ? (
+              <div className={ui.actions}>
+                <Button size="lg" className={ui.primaryBtn} onClick={onPayAndDownload}>
+                  Pay ${tool.priceUsd} and download
+                </Button>
+                <Button variant="secondary" className={ui.secondaryBtn} onClick={changeFile}>
+                  {copy.changeFile}
+                </Button>
+              </div>
+            ) : null}
+
+            {state.kind === "ready" ? (
+              <div className={ui.actions}>
+                <Button size="lg" className={ui.primaryBtn} onClick={() => startDownload(state.runId)}>
+                  {copy.downloadCsv}
+                </Button>
+                <Button variant="secondary" className={ui.secondaryBtn} onClick={resetAll}>
+                  {copy.runAgain}
+                </Button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function ToolRunner({ tool }: { tool: Tool }) {
   const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -43,7 +191,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   const acceptAttr = useMemo(() => tool.input.accepts.join(","), [tool.input.accepts])
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
 
-  const hasFile = !!file
+  const fileName = file?.name ?? null
   const constraintsLabel = `Max ${tool.input.maxSizeMb} MB`
 
   function clearRunFromUrl() {
@@ -78,6 +226,12 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
   function startDownload(runId: string) {
     window.location.href = `/download/${runId}`
+  }
+
+  function onDropFile(f: File) {
+    setFile(f)
+    setState({ kind: "idle" })
+    if (inputRef.current) inputRef.current.value = ""
   }
 
   async function resumeFromRun(runId: string) {
@@ -118,7 +272,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       })
 
       if (!proc.ok) {
-        setState({ kind: "error", message: "Processing failed." })
+        setState({ kind: "error", message: copy.processingFailed })
         return
       }
 
@@ -170,13 +324,13 @@ export function ToolRunner({ tool }: { tool: Tool }) {
         setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB.` })
         return
       }
-      setState({ kind: "error", message: "Preview failed." })
+      setState({ kind: "error", message: copy.previewFailed })
       return
     }
 
     const json = await res.json().catch(() => null)
     if (!json?.runId) {
-      setState({ kind: "error", message: "Preview failed." })
+      setState({ kind: "error", message: copy.previewFailed })
       return
     }
 
@@ -203,7 +357,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     })
 
     if (!unlock.ok) {
-      setState({ kind: "error", message: "Payment failed." })
+      setState({ kind: "error", message: copy.paymentFailed })
       return
     }
 
@@ -214,7 +368,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     })
 
     if (!proc.ok) {
-      setState({ kind: "error", message: "Processing failed." })
+      setState({ kind: "error", message: copy.processingFailed })
       return
     }
 
@@ -227,139 +381,41 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   }
 
   const showFilePanel = state.kind !== "processing" && state.kind !== "ready" && state.kind !== "expired" && state.kind !== "error"
-  const showActions = (state.kind === "idle" && hasFile) || state.kind === "preview_ready" || state.kind === "ready"
+  const showActions = (state.kind === "idle" && !!file) || state.kind === "preview_ready" || state.kind === "ready"
 
   return (
-    <main className="mx-auto max-w-xl px-4 py-14">
-      <header className="mb-10 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight leading-tight sm:text-4xl">{tool.title}</h1>
+    <main className={ui.page}>
+      <header className={ui.header}>
+        <h1 className={ui.title}>{tool.title}</h1>
       </header>
 
-      <Card className="shadow-sm">
-        <CardContent className="space-y-6 p-8">
-          <input
-            ref={inputRef}
-            type="file"
-            accept={acceptAttr}
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0] ?? null
-              setFile(f)
-              setState({ kind: "idle" })
-            }}
-          />
+      <input
+        ref={inputRef}
+        type="file"
+        accept={acceptAttr}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0] ?? null
+          setFile(f)
+          setState({ kind: "idle" })
+        }}
+      />
 
-          {showFilePanel ? (
-            <div className="space-y-2">
-              {!hasFile ? (
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") pickFile()
-                  }}
-                  onClick={pickFile}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    const f = e.dataTransfer.files?.[0] ?? null
-                    if (!f) return
-                    setFile(f)
-                    setState({ kind: "idle" })
-                    if (inputRef.current) inputRef.current.value = ""
-                  }}
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 text-center transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:py-14"
-                >
-                  <div className="text-lg font-semibold sm:text-xl">Upload file</div>
-                  <div className="mt-2 text-sm text-muted-foreground sm:text-base">Drag and drop, or click to browse</div>
-                  <div className="mt-1 text-xs text-muted-foreground sm:text-sm">{constraintsLabel}</div>
-                </div>
-              ) : (
-                <div className="text-sm font-medium sm:text-base">
-                  <span className="block truncate">{file.name}</span>
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {state.kind === "preview_ready" ? (
-            <div className="space-y-1 text-sm sm:text-base">
-              <div>{state.duplicates} rows will be removed.</div>
-              <div>
-                {state.uniqueRows} rows will remain out of {state.totalRows}.
-              </div>
-            </div>
-          ) : null}
-
-          {state.kind === "processing" ? <div className="text-base sm:text-lg">Preparing file…</div> : null}
-          {state.kind === "previewing" ? <div className="text-sm text-muted-foreground sm:text-base">Analyzing…</div> : null}
-
-          {state.kind === "ready" ? (
-            <div className="space-y-2">
-              {typeof state.expiresAt === "number" ? (
-                <div className="text-sm text-muted-foreground sm:text-base">Available until {formatExpiry(state.expiresAt)}</div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {state.kind === "expired" ? (
-            <div className="space-y-3">
-              <div className="text-base sm:text-lg">This run has expired.</div>
-              <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={resetAll}>
-                Start over
-              </Button>
-            </div>
-          ) : null}
-
-          {state.kind === "error" ? (
-            <div className="space-y-3">
-              <div className="text-sm text-foreground sm:text-base">{state.message}</div>
-              <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={resetAll}>
-                Start over
-              </Button>
-            </div>
-          ) : null}
-
-          {state.kind !== "expired" && state.kind !== "error" && showActions ? (
-            <>
-              <Separator />
-
-              {state.kind === "idle" && hasFile ? (
-                <div className="space-y-3">
-                  <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={onGeneratePreview}>
-                    Generate preview
-                  </Button>
-                  <Button variant="secondary" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={changeFile}>
-                    Change file
-                  </Button>
-                </div>
-              ) : null}
-
-              {state.kind === "preview_ready" ? (
-                <div className="space-y-3">
-                  <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={onPayAndDownload}>
-                    Pay ${tool.priceUsd} and download
-                  </Button>
-                  <Button variant="secondary" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={changeFile}>
-                    Change file
-                  </Button>
-                </div>
-              ) : null}
-
-              {state.kind === "ready" ? (
-                <div className="space-y-3">
-                  <Button size="lg" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={() => startDownload(state.runId)}>
-                    Download CSV
-                  </Button>
-                  <Button variant="secondary" className="w-full h-12 sm:h-14 text-base sm:text-lg" onClick={resetAll}>
-                    Run again
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
+      <ToolRunnerView
+        tool={tool}
+        fileName={fileName}
+        constraintsLabel={constraintsLabel}
+        state={state}
+        showFilePanel={showFilePanel}
+        showActions={showActions}
+        pickFile={pickFile}
+        changeFile={changeFile}
+        resetAll={resetAll}
+        onGeneratePreview={onGeneratePreview}
+        onPayAndDownload={onPayAndDownload}
+        startDownload={startDownload}
+        onDropFile={onDropFile}
+      />
     </main>
   )
 }
