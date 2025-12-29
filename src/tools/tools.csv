@@ -1,0 +1,2 @@
+slug,title,oneLiner,priceUsd,accepts,maxSizeMb
+remove-duplicate-csv,Remove duplicate rows from CSV,,2,text/csv,10
