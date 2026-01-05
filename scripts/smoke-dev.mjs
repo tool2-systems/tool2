@@ -1,72 +1,108 @@
-import { spawn } from "node:child_process"
 import fs from "node:fs"
+import path from "node:path"
+import { spawn } from "node:child_process"
 
 function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms))
+  return new Promise((r) => setTimeout(r, ms))
 }
 
-async function waitForOk(url, tries = 80) {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const res = await fetch(url, { method: "HEAD" })
-      if (res.ok) return true
-    } catch {}
-    await sleep(250)
+async function headOk(url) {
+  try {
+    const r = await fetch(url, { method: "HEAD" })
+    return r.ok
+  } catch {
+    return false
+  }
+}
+
+async function findRunningDevBase() {
+  for (let port = 3000; port <= 3010; port++) {
+    const base = `http://localhost:${port}`
+    if (await headOk(`${base}/`)) return base
+  }
+  return null
+}
+
+async function runSmoke(base) {
+  const p = spawn("npm", ["run", "smoke"], {
+    stdio: "inherit",
+    env: { ...process.env, SMOKE_BASE_URL: base }
+  })
+  p.on("exit", (code) => process.exit(code ?? 1))
+}
+
+async function stopChild(child, code) {
+  try {
+    child.kill("SIGTERM")
+  } catch {}
+  await sleep(150)
+  try {
+    child.kill("SIGKILL")
+  } catch {}
+  process.exit(code)
+}
+
+async function waitForUrlFromStdout(child, ms) {
+  let found = null
+  const re = /http:\/\/localhost:(\d+)/
+
+  const onData = (buf) => {
+    const s = String(buf)
+    const m = s.match(re)
+    if (m?.[1]) found = `http://localhost:${m[1]}`
+  }
+
+  child.stdout?.on("data", onData)
+  child.stderr?.on("data", onData)
+
+  const deadline = Date.now() + ms
+  while (!found && Date.now() < deadline) await sleep(50)
+
+  child.stdout?.off("data", onData)
+  child.stderr?.off("data", onData)
+
+  return found
+}
+
+async function waitForServer(base, ms) {
+  const deadline = Date.now() + ms
+  while (Date.now() < deadline) {
+    if (await headOk(`${base}/`)) return true
+    await sleep(100)
   }
   return false
 }
 
-function parsePortFromLine(line) {
-  const m = line.match(/http:\/\/localhost:(\d+)/)
-  return m ? Number(m[1]) : null
-}
-
 async function main() {
-  const lockPath = ".next/dev/lock"
-  if (fs.existsSync(lockPath)) {
-    process.stderr.write(`smoke:dev blocked: ${lockPath} exists (dev already running). Stop dev and retry.\n`)
-    process.exit(1)
+  const lock = path.join(process.cwd(), ".next", "dev", "lock")
+
+  if (fs.existsSync(lock)) {
+    const base = await findRunningDevBase()
+    if (!base) {
+      process.stderr.write("smoke:dev blocked: .next/dev/lock exists but no dev server found on 3000-3010\n")
+      process.exit(1)
+    }
+    await runSmoke(base)
+    return
   }
 
-  const dev = spawn("npm", ["run", "dev"], {
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, FORCE_COLOR: "0" }
+  const dev = spawn("npm", ["run", "dev"], { stdio: ["ignore", "pipe", "pipe"] })
+
+  dev.on("exit", (code) => {
+    if (code && code !== 0) process.exit(code)
   })
 
-  let port = 3000
-  let sawUrl = false
-
-  const onLine = (chunk) => {
-    const s = chunk.toString("utf8")
-    process.stdout.write(s)
-    const lines = s.split(/\r?\n/)
-    for (const line of lines) {
-      const p = parsePortFromLine(line)
-      if (p) {
-        port = p
-        sawUrl = true
-      }
-    }
+  const base = (await waitForUrlFromStdout(dev, 20000)) || (await findRunningDevBase())
+  if (!base) {
+    process.stderr.write("smoke:dev failed: could not detect dev base url\n")
+    await stopChild(dev, 1)
+    return
   }
 
-  dev.stdout.on("data", onLine)
-  dev.stderr.on("data", onLine)
-
-  const stop = async (code) => {
-    try { dev.kill("SIGINT") } catch {}
-    await sleep(250)
-    try { dev.kill("SIGKILL") } catch {}
-    process.exit(code)
-  }
-
-  const deadline = Date.now() + 20000
-  while (!sawUrl && Date.now() < deadline) await sleep(50)
-
-  const base = `http://localhost:${port}`
-  const ok = await waitForOk(`${base}/`)
+  const ok = await waitForServer(base, 20000)
   if (!ok) {
     process.stderr.write(`smoke:dev failed: server not reachable at ${base}\n`)
-    await stop(1)
+    await stopChild(dev, 1)
     return
   }
 
@@ -76,7 +112,7 @@ async function main() {
   })
 
   smoke.on("exit", async (code) => {
-    await stop(code ?? 1)
+    await stopChild(dev, code ?? 1)
   })
 }
 
