@@ -3,11 +3,7 @@ import { Tool } from "@/tools/loadTools"
 export type PreviewResult = {
   runId: string
   inputExt: string
-  previewMeta: {
-    totalRows: number
-    uniqueRows: number
-    duplicates: number
-  }
+  previewMeta: Record<string, number>
 }
 
 export type ToolHandler = {
