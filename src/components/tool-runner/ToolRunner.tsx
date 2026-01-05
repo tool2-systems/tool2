@@ -190,7 +190,7 @@ export function ToolRunnerView(props: {
             {state.kind === "ready" ? (
               <div className={ui.actions}>
                 <Button size="lg" className={ui.primaryBtn} onClick={() => startDownload(state.runId)}>
-                  {copy.downloadCsv}
+                  {downloadLabel}
                 </Button>
                 <Button variant="secondary" className={ui.secondaryBtn} onClick={resetAll}>
                   {copy.runAgain}
