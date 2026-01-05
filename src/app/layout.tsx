@@ -1,5 +1,6 @@
 import "./globals.css"
 import Link from "next/link"
+import "@/lib/server-bootstrap"
 
 export const metadata = {
   title: "Tool2",

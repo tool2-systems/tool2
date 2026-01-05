@@ -1,8 +1,18 @@
 import type { ToolHandler } from "./types"
-import { removeDuplicateCsv } from "./remove-duplicate-csv"
+import { handlers } from "./registry"
+import { verifyHandlersExistInTools } from "./verify"
 
-const handlers: ToolHandler[] = [removeDuplicateCsv]
+let verified = false
+
+function ensureVerified() {
+  if (verified) return
+  verifyHandlersExistInTools()
+  verified = true
+}
 
 export function getHandler(slug: string) {
+  ensureVerified()
   return handlers.find(h => h.slug === slug) ?? null
 }
+
+export type { ToolHandler }

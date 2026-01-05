@@ -1,33 +1,35 @@
-import { NextResponse } from "next/server"
 import { getTool } from "@/tools"
 import { getHandler } from "@/tools/handlers"
 import { copy } from "@/components/tool-runner/copy"
+import { getToolSlugFromParams } from "@/lib/route-params"
+import { apiError } from "@/lib/api-error"
 
-export async function POST(req: Request, ctx: { params: Promise<{ toolSlug: string }> }) {
-  const { toolSlug } = await ctx.params
+export async function POST(req: Request, ctx: { params: unknown }) {
+  const toolSlug = await getToolSlugFromParams(ctx.params)
+  if (!toolSlug) return apiError(404, "not_found")
 
   const tool = getTool(toolSlug)
-  if (!tool) return NextResponse.json({ error: "not found" }, { status: 404 })
+  if (!tool) return apiError(404, "not_found")
 
   const handler = getHandler(toolSlug)
-  if (!handler) return NextResponse.json({ error: "no handler" }, { status: 400 })
+  if (!handler) return apiError(400, "no_handler")
 
-  const form = await req.formData()
+  const form = await req.formData().catch(() => null)
+  if (!form) return apiError(400, "bad_form_data")
+
   const file = form.get("file") as File | null
-  if (!file) return NextResponse.json({ error: "no file" }, { status: 400 })
+  if (!file) return apiError(400, "no_file")
 
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
   if (file.size > maxBytes) {
-    return NextResponse.json(
-      { error: "too large", message: copy.fileTooLarge(tool.input.maxSizeMb) },
-      { status: 413 }
-    )
+    return apiError(413, "file_too_large", { message: copy.fileTooLarge(tool.input.maxSizeMb) })
   }
 
   try {
     const { result } = await handler.preview({ tool, file })
-    return NextResponse.json({ runId: result.runId, preview: result.previewMeta })
-  } catch {
-    return NextResponse.json({ error: "preview failed" }, { status: 500 })
+    return Response.json({ runId: result.runId, preview: result.previewMeta })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "unknown"
+    return apiError(500, "preview_failed", { detail: msg })
   }
 }
