@@ -6,19 +6,25 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
-async function headOk(url) {
+async function getJson(url) {
   try {
-    const r = await fetch(url, { method: "HEAD" })
-    return r.ok
+    const r = await fetch(url)
+    if (!r.ok) return null
+    return await r.json().catch(() => null)
   } catch {
-    return false
+    return null
   }
+}
+
+async function isTool2(base) {
+  const j = await getJson(`${base}/api/_smoke`)
+  return !!(j && j.ok === true && j.app === "tool2")
 }
 
 async function findRunningDevBase() {
   for (let port = 3000; port <= 3010; port++) {
     const base = `http://localhost:${port}`
-    if (await headOk(`${base}/`)) return base
+    if (await isTool2(base)) return base
   }
   return null
 }
@@ -32,13 +38,9 @@ async function runSmoke(base) {
 }
 
 async function stopChild(child, code) {
-  try {
-    child.kill("SIGTERM")
-  } catch {}
+  try { child.kill("SIGTERM") } catch {}
   await sleep(150)
-  try {
-    child.kill("SIGKILL")
-  } catch {}
+  try { child.kill("SIGKILL") } catch {}
   process.exit(code)
 }
 
@@ -64,10 +66,10 @@ async function waitForUrlFromStdout(child, ms) {
   return found
 }
 
-async function waitForServer(base, ms) {
+async function waitForTool2(base, ms) {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
-    if (await headOk(`${base}/`)) return true
+    if (await isTool2(base)) return true
     await sleep(100)
   }
   return false
@@ -79,7 +81,7 @@ async function main() {
   if (fs.existsSync(lock)) {
     const base = await findRunningDevBase()
     if (!base) {
-      process.stderr.write("smoke:dev blocked: .next/dev/lock exists but no dev server found on 3000-3010\n")
+      process.stderr.write("smoke:dev blocked: lock exists but Tool2 not found on 3000-3010\n")
       process.exit(1)
     }
     await runSmoke(base)
@@ -99,9 +101,9 @@ async function main() {
     return
   }
 
-  const ok = await waitForServer(base, 20000)
+  const ok = await waitForTool2(base, 20000)
   if (!ok) {
-    process.stderr.write(`smoke:dev failed: server not reachable at ${base}\n`)
+    process.stderr.write(`smoke:dev failed: Tool2 not reachable at ${base}\n`)
     await stopChild(dev, 1)
     return
   }
