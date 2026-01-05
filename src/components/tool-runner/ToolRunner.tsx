@@ -85,6 +85,8 @@ export function ToolRunnerView(props: {
 
   const hasFile = !!fileName
 
+  const downloadLabel = `Download ${tool.outputExt.toUpperCase()}`
+
   return (
     <Card className={ui.card}>
       <CardContent className={ui.cardContent}>
