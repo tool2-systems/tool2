@@ -8,6 +8,6 @@ export type Run = {
   paidAt?: number
   expiresAt?: number
   inputMeta: { filename: string; size: number }
-  previewMeta?: { totalRows: number; uniqueRows: number; duplicates: number }
+  previewMeta?: Record<string, number>
   outputPath: string
 }

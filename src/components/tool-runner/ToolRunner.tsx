@@ -19,7 +19,7 @@ type Tool = {
 type State =
   | { kind: "idle" }
   | { kind: "previewing" }
-  | { kind: "preview_ready"; runId: string; totalRows: number; uniqueRows: number; duplicates: number }
+  | { kind: "preview_ready"; runId: string; previewMeta: Record<string, number> }
   | { kind: "processing"; runId: string }
   | { kind: "ready"; runId: string; expiresAt: number | null }
   | { kind: "expired" }
@@ -33,6 +33,22 @@ function formatExpiry(ts: number) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(ts))
+}
+
+function labelize(key: string) {
+  const s = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ")
+  return s.slice(0, 1).toUpperCase() + s.slice(1)
+}
+
+function sortPreviewKeys(keys: string[]) {
+  const priority = ["totalRows", "uniqueRows", "duplicates"]
+  const rank = new Map(priority.map((k, i) => [k, i]))
+  return [...keys].sort((a, b) => {
+    const ra = rank.has(a) ? rank.get(a) : 999
+    const rb = rank.has(b) ? rank.get(b) : 999
+    if (ra !== rb) return ra - rb
+    return a.localeCompare(b)
+  })
 }
 
 export function ToolRunnerView(props: {
@@ -103,9 +119,15 @@ export function ToolRunnerView(props: {
         ) : null}
 
         {state.kind === "preview_ready" ? (
-          <div className={ui.previewText}>
-            <div>{copy.previewRemoved(state.duplicates)}</div>
-            <div>{copy.previewRemain(state.uniqueRows, state.totalRows)}</div>
+          <div className="space-y-2">
+            <div className={ui.previewText}>
+              {sortPreviewKeys(Object.keys(state.previewMeta)).map((k) => (
+                <div key={k} className="flex items-baseline justify-between gap-6">
+                  <div className="text-sm text-muted-foreground sm:text-base">{labelize(k)}</div>
+                  <div className="text-sm font-medium text-foreground sm:text-base">{state.previewMeta[k]}</div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -258,91 +280,60 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     }
 
     if (json.status === "ready") {
-      setState({ kind: "ready", runId: json.runId, expiresAt: json.expiresAt })
+      setState({ kind: "ready", runId: json.id, expiresAt: typeof json.expiresAt === "number" ? json.expiresAt : null })
       return
     }
 
     if (json.status === "paid") {
-      setState({ kind: "processing", runId: json.runId })
-
-      const proc = await fetch(`/api/process/${tool.slug}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ runId: json.runId })
-      })
-
-      if (!proc.ok) {
-        setState({ kind: "error", message: copy.processingFailed })
-        return
-      }
-
-      const re = await fetch(`/api/run/${json.runId}`)
-      const j2 = await re.json().catch(() => null)
-      const expiresAt = j2?.expiresAt ?? null
-
-      setState({ kind: "ready", runId: json.runId, expiresAt })
-      startDownload(json.runId)
+      setState({ kind: "processing", runId: json.id })
       return
     }
 
-    if (json.status === "preview_ready" && json.preview) {
-      setState({
-        kind: "preview_ready",
-        runId: json.runId,
-        totalRows: json.preview.totalRows,
-        uniqueRows: json.preview.uniqueRows,
-        duplicates: json.preview.duplicates
-      })
+    if (json.status === "preview_ready") {
+      const pm = (json.previewMeta && typeof json.previewMeta === "object") ? json.previewMeta : null
+      if (!pm) {
+        setState({ kind: "idle" })
+        return
+      }
+      setState({ kind: "preview_ready", runId: json.id, previewMeta: pm as Record<string, number> })
       return
     }
 
     setState({ kind: "idle" })
   }
 
-  useEffect(() => {
-    const runId = searchParams.get("run")
-    if (!runId) return
-    resumeFromRun(runId)
-  }, [searchParams, tool.slug])
-
   async function onGeneratePreview() {
     if (!file) return
-
     if (file.size > maxBytes) {
-      setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB.` })
+      setState({ kind: "error", message: copy.fileTooLarge(tool.input.maxSizeMb) })
       return
     }
 
     setState({ kind: "previewing" })
 
-    const form = new FormData()
-    form.append("file", file)
+    const fd = new FormData()
+    fd.append("file", file)
 
-    const res = await fetch(`/api/preview/${tool.slug}`, { method: "POST", body: form })
+    const res = await fetch(`/api/preview/${tool.slug}`, { method: "POST", body: fd })
     if (!res.ok) {
-      if (res.status === 413) {
-        setState({ kind: "error", message: `File exceeds ${tool.input.maxSizeMb} MB.` })
-        return
-      }
       setState({ kind: "error", message: copy.previewFailed })
       return
     }
 
     const json = await res.json().catch(() => null)
-    if (!json?.runId) {
+    if (!json || typeof json.runId !== "string" || !json.preview) {
+      setState({ kind: "error", message: copy.previewFailed })
+      return
+    }
+
+    const pm = json.preview && typeof json.preview === "object" ? json.preview : null
+    if (!pm) {
       setState({ kind: "error", message: copy.previewFailed })
       return
     }
 
     setRunInUrl(json.runId)
-
-    setState({
-      kind: "preview_ready",
-      runId: json.runId,
-      totalRows: json.preview.totalRows,
-      uniqueRows: json.preview.uniqueRows,
-      duplicates: json.preview.duplicates
-    })
+    setState({ kind: "preview_ready", runId: json.runId, previewMeta: pm as Record<string, number> })
   }
 
   async function onPayAndDownload() {
@@ -350,72 +341,78 @@ export function ToolRunner({ tool }: { tool: Tool }) {
 
     setState({ kind: "processing", runId: state.runId })
 
-    const unlock = await fetch("/api/unlock", {
+    const res = await fetch("/api/unlock", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ runId: state.runId })
     })
 
-    if (!unlock.ok) {
+    if (!res.ok) {
       setState({ kind: "error", message: copy.paymentFailed })
       return
     }
 
-    const proc = await fetch(`/api/process/${tool.slug}`, {
+    const json = await res.json().catch(() => null)
+    const expiresAt = json && typeof json.expiresAt === "number" ? json.expiresAt : null
+
+    const res2 = await fetch(`/api/process/${tool.slug}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ runId: state.runId })
     })
 
-    if (!proc.ok) {
+    if (!res2.ok) {
       setState({ kind: "error", message: copy.processingFailed })
       return
     }
-
-    const r = await fetch(`/api/run/${state.runId}`)
-    const j = await r.json().catch(() => null)
-    const expiresAt = j?.expiresAt ?? null
 
     setState({ kind: "ready", runId: state.runId, expiresAt })
     startDownload(state.runId)
   }
 
-  const showFilePanel = state.kind !== "processing" && state.kind !== "ready" && state.kind !== "expired" && state.kind !== "error"
-  const showActions = (state.kind === "idle" && !!file) || state.kind === "preview_ready" || state.kind === "ready"
+  useEffect(() => {
+    const runId = searchParams.get("run")
+    if (!runId) return
+    resumeFromRun(runId)
+  }, [])
 
   return (
-    <main className={ui.page}>
-      <header className={ui.header}>
-        <h1 className={ui.title}>{tool.title}</h1>
-      </header>
+    <>
+      <main className="mx-auto w-full max-w-2xl px-4 py-14">
+        <header className="mb-10 text-center">
+          <h1 className="text-3xl font-semibold tracking-tight leading-tight sm:text-4xl">{tool.title}</h1>
+          <p className="mt-2 text-sm text-muted-foreground sm:text-base">{tool.oneLiner}</p>
+        </header>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept={acceptAttr}
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0] ?? null
-          setFile(f)
-          setState({ kind: "idle" })
-        }}
-      />
+        <input
+          ref={inputRef}
+          type="file"
+          accept={acceptAttr}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null
+            if (!f) return
+            setFile(f)
+            setState({ kind: "idle" })
+          }}
+        />
 
-      <ToolRunnerView
-        tool={tool}
-        fileName={fileName}
-        constraintsLabel={constraintsLabel}
-        state={state}
-        showFilePanel={showFilePanel}
-        showActions={showActions}
-        pickFile={pickFile}
-        changeFile={changeFile}
-        resetAll={resetAll}
-        onGeneratePreview={onGeneratePreview}
-        onPayAndDownload={onPayAndDownload}
-        startDownload={startDownload}
-        onDropFile={onDropFile}
-      />
-    </main>
+        <ToolRunnerView
+          tool={tool}
+          fileName={fileName}
+          constraintsLabel={constraintsLabel}
+          state={state}
+          showFilePanel={state.kind === "idle" || state.kind === "previewing" || state.kind === "preview_ready"}
+          showActions={true}
+          pickFile={pickFile}
+          changeFile={changeFile}
+          resetAll={resetAll}
+          onGeneratePreview={onGeneratePreview}
+          onPayAndDownload={onPayAndDownload}
+          startDownload={startDownload}
+          onDropFile={onDropFile}
+        />
+      </main>
+    </>
   )
 }
