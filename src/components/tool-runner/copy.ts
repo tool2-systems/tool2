@@ -1,4 +1,5 @@
 export const copy = {
+  fileTooLarge: (mb: number) => `File exceeds ${mb} MB.`,
   uploadTitle: "Upload file",
   uploadHint: "Drag and drop, or click to browse",
   analyzing: "Analyzing…",
