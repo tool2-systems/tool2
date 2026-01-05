@@ -31,7 +31,7 @@ function splitCsvLine(line) {
 
 function slugToCamel(slug) {
   const parts = slug.split("-").filter(Boolean)
-  return parts.map((p, i) => i === 0 ? p : p.slice(0,1).toUpperCase() + p.slice(1)).join("")
+  return parts.map((p, i) => i === 0 ? p : p.slice(0, 1).toUpperCase() + p.slice(1)).join("")
 }
 
 const csvFile = path.join(root, "src", "tools", "tools.csv")
@@ -61,20 +61,26 @@ for (const line of lines.slice(1)) {
   const ident = slugToCamel(slug)
 
   const content =
-`import type { Tool } from "@/tools"
+`import type { Tool } from "@/tools/loadTools"
 import type { ToolHandler } from "./types"
 
 export const ${ident}: ToolHandler = {
   slug: "${slug}",
   async preview({ tool, file }) {
-    const err = new Error("not implemented")
-    ;(err as any).toolSlug = tool.slug
-    throw err
+    const raw = ""
+    const result = {
+      runId: crypto.randomUUID(),
+      inputExt: "",
+      previewMeta: {
+        totalRows: 0,
+        uniqueRows: 0,
+        duplicates: 0
+      }
+    }
+    return { raw, result }
   },
   async process({ tool, runId, run }) {
-    const err = new Error("not implemented")
-    ;(err as any).toolSlug = tool.slug
-    throw err
+    throw new Error("not implemented")
   }
 }
 `
