@@ -71,11 +71,7 @@ export const ${ident}: ToolHandler = {
     const result = {
       runId: crypto.randomUUID(),
       inputExt: "",
-      previewMeta: {
-        totalRows: 0,
-        uniqueRows: 0,
-        duplicates: 0
-      }
+      previewMeta: {}
     }
     return { raw, result }
   },
