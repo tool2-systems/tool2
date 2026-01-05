@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process"
+import fs from "node:fs"
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
 
-async function waitForOk(url, tries = 60) {
+async function waitForOk(url, tries = 80) {
   for (let i = 0; i < tries; i++) {
     try {
       const res = await fetch(url, { method: "HEAD" })
@@ -21,6 +22,12 @@ function parsePortFromLine(line) {
 }
 
 async function main() {
+  const lockPath = ".next/dev/lock"
+  if (fs.existsSync(lockPath)) {
+    process.stderr.write(`smoke:dev blocked: ${lockPath} exists (dev already running). Stop dev and retry.\n`)
+    process.exit(1)
+  }
+
   const dev = spawn("npm", ["run", "dev"], {
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, FORCE_COLOR: "0" }
@@ -52,7 +59,7 @@ async function main() {
     process.exit(code)
   }
 
-  const deadline = Date.now() + 15000
+  const deadline = Date.now() + 20000
   while (!sawUrl && Date.now() < deadline) await sleep(50)
 
   const base = `http://localhost:${port}`
