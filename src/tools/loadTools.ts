@@ -7,6 +7,7 @@ export type Tool = {
   oneLiner: string
   priceUsd: number
   input: { accepts: string[]; maxSizeMb: number }
+  outputExt: string
 }
 
 function splitCsvLine(line: string) {
@@ -51,6 +52,7 @@ export function loadTools(): Tool[] {
   const iPrice = idx("priceUsd")
   const iAcc = idx("accepts")
   const iMax = idx("maxSizeMb")
+  const iOut = idx("outputExt")
 
   if ([iSlug, iTitle, iOne, iPrice, iAcc, iMax].some(i => i < 0)) {
     throw new Error("tools.csv missing required headers")
@@ -67,13 +69,16 @@ export function loadTools(): Tool[] {
     const priceUsd = Number(cols[iPrice] ?? "0")
     const accepts = (cols[iAcc] ?? "").split("|").map(s => s.trim()).filter(Boolean)
     const maxSizeMb = Number(cols[iMax] ?? "0")
+    const outputExtRaw = iOut >= 0 ? (cols[iOut] ?? "") : ""
+    const outputExt = (outputExtRaw || "csv").replace(/^\./, "").toLowerCase()
 
     tools.push({
       slug,
       title,
       oneLiner,
       priceUsd,
-      input: { accepts, maxSizeMb }
+      input: { accepts, maxSizeMb },
+      outputExt
     })
   }
 

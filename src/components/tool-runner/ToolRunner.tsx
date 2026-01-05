@@ -14,6 +14,7 @@ type Tool = {
   oneLiner: string
   priceUsd: number
   input: { accepts: string[]; maxSizeMb: number }
+  outputExt: string
 }
 
 type State =

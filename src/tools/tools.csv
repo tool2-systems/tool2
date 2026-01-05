@@ -1,4 +1,4 @@
-slug,title,oneLiner,priceUsd,accepts,maxSizeMb
-remove-duplicate-csv,Remove duplicate rows from CSV,Removes duplicate rows and outputs a deduplicated CSV.,2,text/csv,10
+slug,title,oneLiner,priceUsd,accepts,maxSizeMb,outputExt
+remove-duplicate-csv,Remove duplicate rows from CSV,Removes duplicate rows and outputs a deduplicated CSV.,2,text/csv,10,csv
 
-count-csv-rows,Count rows in CSV,Counts rows in a CSV file.,2,text/csv,10
+count-csv-rows,Count rows in CSV,Counts rows in a CSV file.,2,text/csv,10,csv
