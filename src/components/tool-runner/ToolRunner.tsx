@@ -87,6 +87,9 @@ export function ToolRunnerView(props: {
 
   const downloadLabel = `Download ${tool.outputExt.toUpperCase()}`
 
+  const showDivider = (state.kind === "idle" && hasFile) || state.kind === "preview_ready" || state.kind === "ready"
+
+
   return (
     <Card className={ui.card}>
       <CardContent className={ui.cardContent}>
@@ -165,7 +168,7 @@ export function ToolRunnerView(props: {
 
         {state.kind !== "expired" && state.kind !== "error" && showActions ? (
           <>
-            <Separator />
+            {showDivider ? <Separator /> : null}
 
             {state.kind === "idle" && hasFile ? (
               <div className={ui.actions}>
