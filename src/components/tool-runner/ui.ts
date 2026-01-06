@@ -2,8 +2,6 @@ export const ui = {
   page: "mx-auto max-w-xl px-4 py-14",
   header: "mb-10 text-center",
   title: "text-3xl font-semibold tracking-tight leading-tight sm:text-4xl",
-  card: "shadow-sm",
-  cardContent: "space-y-6 p-8",
   dropzone: "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 text-center transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:py-14",
   dropTitle: "text-lg font-semibold sm:text-xl",
   dropHint: "mt-2 text-sm text-muted-foreground sm:text-base",

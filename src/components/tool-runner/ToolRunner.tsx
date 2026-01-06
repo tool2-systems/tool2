@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { copy } from "./copy"
 import { ui } from "./ui"
@@ -91,8 +90,8 @@ export function ToolRunnerView(props: {
 
 
   return (
-    <Card className={ui.card}>
-      <CardContent className={ui.cardContent}>
+    <div>
+      <div className="space-y-8 p-8 sm:p-10">
         {showFilePanel ? (
           <div className="space-y-2">
             {!hasFile ? (
@@ -204,8 +203,8 @@ export function ToolRunnerView(props: {
             ) : null}
           </>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
