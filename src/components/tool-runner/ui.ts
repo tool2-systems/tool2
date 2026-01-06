@@ -12,7 +12,7 @@ export const ui = {
   previewText: "space-y-1 text-sm sm:text-base",
   subtle: "text-sm text-muted-foreground sm:text-base",
   status: "text-base sm:text-lg",
-  actions: "space-y-3",
+  actions: "space-y-3 flex flex-col items-center",
   primaryBtn: "w-full h-12 sm:h-14 text-base sm:text-lg",
-  secondaryBtn: "w-full h-12 sm:h-14 text-base sm:text-lg"
+  secondaryBtn: "h-10 px-0 text-base sm:text-lg"
 }

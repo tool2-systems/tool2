@@ -172,7 +172,7 @@ export function ToolRunnerView(props: {
                 <Button size="lg" className={ui.primaryBtn} onClick={onGeneratePreview}>
                   {copy.generatePreview}
                 </Button>
-                <Button variant="secondary" className={ui.secondaryBtn} onClick={changeFile}>
+                <Button variant="link" className={ui.secondaryBtn} onClick={changeFile}>
                   {copy.changeFile}
                 </Button>
               </div>
@@ -183,7 +183,7 @@ export function ToolRunnerView(props: {
                 <Button size="lg" className={ui.primaryBtn} onClick={onPayAndDownload}>
                   Pay ${tool.priceUsd} and download
                 </Button>
-                <Button variant="secondary" className={ui.secondaryBtn} onClick={changeFile}>
+                <Button variant="link" className={ui.secondaryBtn} onClick={changeFile}>
                   {copy.changeFile}
                 </Button>
               </div>
@@ -194,7 +194,7 @@ export function ToolRunnerView(props: {
                 <Button size="lg" className={ui.primaryBtn} onClick={() => startDownload(state.runId)}>
                   {downloadLabel}
                 </Button>
-                <Button variant="secondary" className={ui.secondaryBtn} onClick={resetAll}>
+                <Button variant="link" className={ui.secondaryBtn} onClick={resetAll}>
                   {copy.runAgain}
                 </Button>
               </div>
