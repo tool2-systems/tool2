@@ -8,7 +8,7 @@ export const ui = {
   dropHint: "mt-2 text-xs text-muted-foreground sm:text-sm",
   dropMeta: "mt-4 inline-flex items-center rounded-full border border-foreground/10 bg-background/60 px-3 py-1 text-xs text-muted-foreground",
 
-  fileName: "w-full rounded-xl border border-foreground/10 bg-muted/10 px-4 py-3 text-sm font-medium sm:text-base",
+  fileName: "w-full rounded-xl border border-foreground/10 bg-muted/10 px-4 py-3 space-y-1 text-sm font-medium sm:text-base",
 
   previewText: "space-y-2",
   previewRow: "flex items-baseline justify-between gap-6 rounded-xl border border-foreground/10 bg-muted/10 px-4 py-3",

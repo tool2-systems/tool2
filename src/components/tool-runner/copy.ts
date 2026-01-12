@@ -7,6 +7,7 @@ export const copy = {
   startOver: "Start over",
   changeFile: "Change file",
   generatePreview: "Generate preview",
+  payAndDownload: (usd: number) => `Pay $${usd} and download`,
   downloadCsv: "Download CSV",
   runAgain: "Run again",
   previewFailed: "Preview failed.",

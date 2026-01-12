@@ -117,7 +117,8 @@ export function ToolRunnerView(props: {
               </div>
             ) : (
               <div className={ui.fileName}>
-                <span className="block truncate">{fileName}</span>
+                <div className="text-xs text-muted-foreground">Selected file</div>
+                <div className="truncate">{fileName}</div>
               </div>
             )}
           </div>
@@ -183,7 +184,7 @@ export function ToolRunnerView(props: {
             {state.kind === "preview_ready" ? (
               <div className={ui.actions}>
                 <Button size="lg" className={ui.primaryBtn} onClick={onPayAndDownload}>
-                  Pay ${tool.priceUsd} and download
+                  {copy.payAndDownload(tool.priceUsd)}
                 </Button>
                 <Button variant="link" className={ui.secondaryBtn} onClick={changeFile}>
                   {copy.changeFile}
