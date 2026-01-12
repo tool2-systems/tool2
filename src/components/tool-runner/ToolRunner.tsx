@@ -93,17 +93,20 @@ export function ToolRunnerView(props: {
 
   const downloadLabel = `Download ${tool.outputExt.toUpperCase()}`
 
+  const busy = state.kind === "previewing" || state.kind === "processing"
+
   const showDivider = (state.kind === "idle" && hasFile) || state.kind === "preview_ready" || state.kind === "ready"
 
 
   return (
     <div>
-      <div className="space-y-8 p-8 sm:p-10">
+      <div className="space-y-8 p-8 sm:p-10" aria-busy={busy}>
         {showFilePanel ? (
           <div className="space-y-2">
             {!hasFile ? (
               <div
                 role="button"
+                aria-label="Upload file"
                 tabIndex={0}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") pickFile()
@@ -123,7 +126,7 @@ export function ToolRunnerView(props: {
                 <div className={ui.dropMeta}>{constraintsLabel}</div>
               </div>
             ) : (
-              <div className={ui.fileName}>
+              <div role="button" tabIndex={0} className={ui.fileName} onClick={changeFile} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") changeFile() }}>
                 <div className="text-xs text-muted-foreground">Selected file</div>
                 <div className="truncate">{fileName}</div>
               </div>
@@ -182,7 +185,7 @@ export function ToolRunnerView(props: {
 
             {state.kind === "idle" && hasFile ? (
               <div className={ui.actions}>
-                <Button size="lg" className={ui.primaryBtn} onClick={onGeneratePreview}>
+                <Button size="lg" className={ui.primaryBtn} onClick={onGeneratePreview} disabled={busy}>
                   {copy.generatePreview}
                 </Button>
                 <Button variant="link" className={ui.secondaryBtn} onClick={changeFile}>
@@ -193,7 +196,7 @@ export function ToolRunnerView(props: {
 
             {state.kind === "preview_ready" ? (
               <div className={ui.actions}>
-                <Button size="lg" className={ui.primaryBtn} onClick={onPayAndDownload}>
+                <Button size="lg" className={ui.primaryBtn} onClick={onPayAndDownload} disabled={busy}>
                   {copy.payAndDownload(tool.priceUsd)}
                 </Button>
                 <Button variant="link" className={ui.secondaryBtn} onClick={changeFile}>
@@ -204,7 +207,7 @@ export function ToolRunnerView(props: {
 
             {state.kind === "ready" ? (
               <div className={ui.actions}>
-                <Button size="lg" className={ui.primaryBtn} onClick={() => startDownload(state.runId)}>
+                <Button size="lg" className={ui.primaryBtn} onClick={() => startDownload(state.runId)} disabled={busy}>
                   {downloadLabel}
                 </Button>
                 <Button variant="link" className={ui.secondaryBtn} onClick={resetAll}>
