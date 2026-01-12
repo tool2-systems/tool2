@@ -127,9 +127,9 @@ export function ToolRunnerView(props: {
           <div className="space-y-2">
             <div className={ui.previewText}>
               {sortPreviewKeys(Object.keys(state.previewMeta)).map((k) => (
-                <div key={k} className="flex items-baseline justify-between gap-6">
-                  <div className="text-sm text-muted-foreground sm:text-base">{labelize(k)}</div>
-                  <div className="text-sm font-medium text-foreground sm:text-base">{state.previewMeta[k]}</div>
+                <div key={k} className={ui.previewRow}>
+                  <div className={ui.previewLabel}>{labelize(k)}</div>
+                  <div className={ui.previewValue}>{state.previewMeta[k]}</div>
                 </div>
               ))}
             </div>
