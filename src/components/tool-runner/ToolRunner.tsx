@@ -35,6 +35,13 @@ function formatExpiry(ts: number) {
   }).format(new Date(ts))
 }
 
+function prettyLabel(key: string) {
+  if (key === "totalRows") return "Total rows"
+  if (key === "uniqueRows") return "Unique rows"
+  if (key === "duplicates") return "Duplicates"
+  return labelize(key)
+}
+
 function labelize(key: string) {
   const s = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ")
   return s.slice(0, 1).toUpperCase() + s.slice(1)
@@ -129,7 +136,7 @@ export function ToolRunnerView(props: {
             <div className={ui.previewText}>
               {sortPreviewKeys(Object.keys(state.previewMeta)).map((k) => (
                 <div key={k} className={ui.previewRow}>
-                  <div className={ui.previewLabel}>{labelize(k)}</div>
+                  <div className={ui.previewLabel}>{prettyLabel(k)}</div>
                   <div className={ui.previewValue}>{state.previewMeta[k]}</div>
                 </div>
               ))}
@@ -143,7 +150,10 @@ export function ToolRunnerView(props: {
         {state.kind === "ready" ? (
           <div className="space-y-2">
             {typeof state.expiresAt === "number" ? (
-              <div className={ui.subtle}>{copy.availableUntil(formatExpiry(state.expiresAt))}</div>
+              <div className="space-y-1">
+                <div className={ui.subtle}>File ready.</div>
+                <div className={ui.subtle}>{copy.availableUntil(formatExpiry(state.expiresAt))}</div>
+              </div>
             ) : null}
           </div>
         ) : null}

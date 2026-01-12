@@ -3,7 +3,7 @@ export const copy = {
   uploadTitle: "Upload file",
   uploadHint: "Drag & drop or browse",
   analyzing: "Analyzing…",
-  preparing: "Preparing file…",
+  preparing: "Preparing…",
   startOver: "Start over",
   changeFile: "Change file",
   generatePreview: "Generate preview",
