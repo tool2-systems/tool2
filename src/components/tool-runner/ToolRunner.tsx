@@ -386,7 +386,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
       <main className="mx-auto w-full max-w-2xl px-4 py-14">
         <header className="mb-10 text-center">
           <h1 className="text-3xl font-semibold tracking-tight leading-tight sm:text-4xl">{tool.title}</h1>
-          <p className="mt-2 text-sm text-muted-foreground sm:text-base">{tool.oneLiner}</p>
+          <p className="mt-3 mx-auto max-w-[60ch] text-sm text-muted-foreground sm:text-base">{tool.oneLiner}</p>
         </header>
 
         <input
