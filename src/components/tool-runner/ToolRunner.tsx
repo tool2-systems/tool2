@@ -91,7 +91,7 @@ export function ToolRunnerView(props: {
 
   const hasFile = !!fileName
 
-  const downloadLabel = `Download ${tool.outputExt.toUpperCase()}`
+  const downloadLabel = `DOWNLOAD ${tool.outputExt.toUpperCase()}`
 
   const busy = state.kind === "previewing" || state.kind === "processing"
 
@@ -127,7 +127,7 @@ export function ToolRunnerView(props: {
               </div>
             ) : (
               <div role="button" tabIndex={0} className={ui.fileName} onClick={changeFile} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") changeFile() }}>
-                <div className="text-xs text-muted-foreground">Selected file</div>
+                <div className="text-xs text-muted-foreground">SELECTED FILE</div>
                 <div className="truncate">{fileName}</div>
               </div>
             )}
@@ -233,7 +233,7 @@ export function ToolRunner({ tool }: { tool: Tool }) {
   const maxBytes = tool.input.maxSizeMb * 1024 * 1024
 
   const fileName = file?.name ?? null
-  const constraintsLabel = `Max ${tool.input.maxSizeMb} MB`
+  const constraintsLabel = `MAX FILE SIZE: ${tool.input.maxSizeMb} MB`
 
   function clearRunFromUrl() {
     const url = new URL(window.location.href)
@@ -399,8 +399,8 @@ export function ToolRunner({ tool }: { tool: Tool }) {
     <>
       <main className="mx-auto w-full max-w-2xl px-4 py-14">
         <header className="mb-10 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight leading-tight sm:text-4xl">{tool.title}</h1>
-          <p className="mt-3 mx-auto max-w-[60ch] text-sm text-muted-foreground sm:text-base">{tool.oneLiner}</p>
+          <h1 className="text-3xl font-semibold tracking-tight leading-tight sm:text-4xl">{tool.title.toUpperCase()}</h1>
+          
         </header>
 
         <input
